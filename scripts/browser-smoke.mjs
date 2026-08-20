@@ -10,6 +10,7 @@ const debugPort = Number(process.env.SMOKE_DEBUG_PORT || 9223);
 const gameUrl = `http://${host}:${port}/`;
 const reports = resolve('reports');
 const pageErrors = [];
+const browserOutput = [];
 let server;
 let browser;
 let socket;
@@ -94,6 +95,33 @@ async function evaluate(protocol, expression) {
   return result.result?.value;
 }
 
+async function stopProcess(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise((resolveExit) => child.once('exit', resolveExit));
+  child.kill('SIGTERM');
+  await Promise.race([exited, delay(1500)]);
+  if (child.exitCode === null && child.signalCode === null) {
+    child.kill('SIGKILL');
+    await Promise.race([exited, delay(1000)]);
+  }
+}
+
+async function removeProfile(path) {
+  if (!path) return;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+      return;
+    } catch (error) {
+      if (!['ENOTEMPTY', 'EBUSY', 'EPERM'].includes(error?.code) || attempt === 5) {
+        process.stderr.write(`Smoke cleanup warning: ${error instanceof Error ? error.message : String(error)}\n`);
+        return;
+      }
+      await delay(250 * (attempt + 1));
+    }
+  }
+}
+
 async function run() {
   await mkdir(reports, { recursive: true });
   profile = await mkdtemp(join(tmpdir(), 'afterdark-smoke-'));
@@ -121,16 +149,23 @@ async function run() {
     '--mute-audio',
     '--enable-webgl',
     '--ignore-gpu-blocklist',
+    '--use-gl=angle',
     '--use-angle=swiftshader',
+    '--enable-unsafe-swiftshader',
+    '--disable-gpu-sandbox',
+    '--ozone-platform=headless',
     `--remote-debugging-port=${debugPort}`,
     `--user-data-dir=${profile}`,
     '--window-size=1600,900',
     'about:blank'
   ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  browser.stdout.on('data', (chunk) => browserOutput.push(String(chunk)));
+  browser.stderr.on('data', (chunk) => browserOutput.push(String(chunk)));
 
   await waitForUrl(`http://${host}:${debugPort}/json/version`);
   const pages = await (await fetch(`http://${host}:${debugPort}/json/list`)).json();
-  const target = pages.find((page) => page.type === 'page');
+  const pageTargets = pages.filter((page) => page.type === 'page');
+  const target = pageTargets.find((page) => page.url === 'about:blank') ?? pageTargets.at(-1);
   if (!target?.webSocketDebuggerUrl) throw new Error('Chrome did not expose a debuggable page.');
   const protocol = createProtocol(target.webSocketDebuggerUrl);
   await protocol.ready;
@@ -143,13 +178,18 @@ async function run() {
   await protocol.send('Page.enable');
   await protocol.send('Runtime.enable');
   await protocol.send('Log.enable');
-  await protocol.send('Page.navigate', { url: gameUrl });
+  const navigation = await protocol.send('Page.navigate', { url: gameUrl });
+  if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`);
 
   const deadline = Date.now() + 20000;
   let state;
   while (Date.now() < deadline) {
     await delay(250);
     state = await evaluate(protocol, `(() => ({
+      url: location.href,
+      title: document.title,
+      readyState: document.readyState,
+      bodyText: document.body?.innerText?.trim().slice(0, 500) ?? '',
       appReady: Boolean(globalThis.afterdarkCounty),
       bootHidden: document.querySelector('#boot-screen')?.classList.contains('hidden') ?? false,
       canvasReady: Boolean(document.querySelector('#game-root canvas')),
@@ -165,7 +205,13 @@ async function run() {
   }
 
   if (!state?.appReady || !state?.bootHidden || !state?.canvasReady || !state?.hudReady || state?.renderCalls <= 0) {
-    throw new Error(`Game did not reach a rendered playable state: ${JSON.stringify(state)}`);
+    try {
+      const failureShot = await protocol.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      await writeFile(join(reports, 'pine-ridge-smoke-failure.png'), Buffer.from(failureShot.data, 'base64'));
+    } catch {}
+    const diagnostics = { state, pageErrors, serverOutput, browserOutput };
+    await writeFile(join(reports, 'browser-smoke-failure.json'), `${JSON.stringify(diagnostics, null, 2)}\n`);
+    throw new Error(`Game did not reach a rendered playable state: ${JSON.stringify(diagnostics)}`);
   }
 
   const before = state.player;
@@ -198,7 +244,7 @@ try {
   await run();
 } finally {
   try { socket?.close(); } catch {}
-  if (browser && !browser.killed) browser.kill('SIGTERM');
-  if (server && !server.killed) server.kill('SIGTERM');
-  if (profile) await rm(profile, { recursive: true, force: true });
+  await stopProcess(browser);
+  await stopProcess(server);
+  await removeProfile(profile);
 }
