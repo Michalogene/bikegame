@@ -27,4 +27,9 @@ export class Random {
   pick(values) {
     return values[Math.floor(this.next() * values.length)];
   }
+
+  /** @param {number} probability */
+  chance(probability) {
+    return this.next() < probability;
+  }
 }

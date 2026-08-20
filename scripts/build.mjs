@@ -6,8 +6,8 @@ const dist = resolve(root, 'dist');
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
-for (const entry of ['index.html', 'styles', 'src', 'README.md', 'ASSET_LICENSES.md']) {
+for (const entry of ['index.html', 'styles', 'src', 'vendor', 'README.md', 'ASSET_LICENSES.md']) {
   await cp(resolve(root, entry), resolve(dist, entry), { recursive: true });
 }
 
-console.log('Built static distribution in dist/.');
+process.stdout.write('Built static distribution in dist/.\n');

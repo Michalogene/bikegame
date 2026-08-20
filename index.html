@@ -11,11 +11,16 @@
   <body>
     <div id="game-root" aria-label="Afterdark County game viewport"></div>
     <div id="ui-root"></div>
+    <div id="boot-screen" role="status" aria-live="polite">
+      <div class="boot-brand"><strong>AFTERDARK</strong><span>COUNTY</span></div>
+      <div class="boot-copy">Preparing Pine Ridge...</div>
+      <div class="boot-track"><i></i></div>
+    </div>
     <noscript>Afterdark County requires JavaScript.</noscript>
     <script type="importmap">
       {
         "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js"
+          "three": "./vendor/three.module.min.js"
         }
       }
     </script>

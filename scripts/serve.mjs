@@ -22,7 +22,7 @@ const mime = {
 createServer(async (request, response) => {
   try {
     const rawPath = decodeURIComponent(new URL(request.url || '/', `http://${host}`).pathname);
-    const requested = rawPath === '/' ? '/index.html' : rawPath;
+    const requested = rawPath === '/' ? 'index.html' : rawPath.replace(/^\/+/, '');
     const safePath = normalize(requested).replace(/^(\.\.[/\\])+/, '');
     let filePath = join(root, safePath);
     const info = await stat(filePath);
@@ -30,7 +30,8 @@ createServer(async (request, response) => {
     const data = await readFile(filePath);
     response.writeHead(200, {
       'Content-Type': mime[extname(filePath)] || 'application/octet-stream',
-      'Cache-Control': 'no-store'
+      'Cache-Control': 'no-store',
+      'Cross-Origin-Resource-Policy': 'cross-origin'
     });
     response.end(data);
   } catch {
