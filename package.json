@@ -1,0 +1,21 @@
+{
+  "name": "afterdark-county",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A modular isometric browser survival game vertical slice.",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "node scripts/check.mjs",
+    "test": "node --test tests/*.test.js",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
