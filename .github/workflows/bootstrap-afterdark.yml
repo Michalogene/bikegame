@@ -39,12 +39,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cp .github/workflows/verify.yml /tmp/verify.yml
           cat bootstrap/afterdark-source.part* > /tmp/afterdark-source.tar.gz.b64
           base64 --decode /tmp/afterdark-source.tar.gz.b64 > /tmp/afterdark-source.tar.gz
           echo "dc3b65a73d29acef07e170e5f945069980fe4238c13187b627c8677d4d027773  /tmp/afterdark-source.tar.gz" | sha256sum --check -
           tar -xzf /tmp/afterdark-source.tar.gz
-          rm -rf bootstrap
-          rm -f .github/workflows/bootstrap-afterdark.yml
+          cp /tmp/verify.yml .github/workflows/verify.yml
 
       - name: Commit reconstructed playable source
         shell: bash
@@ -54,8 +54,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --check
-          git commit -m "feat: build playable Pine Ridge survival foundation"
-          git push origin HEAD:chatgpt/afterdark-county
+          if git diff --cached --quiet; then
+            echo "Playable source is already reconstructed."
+          else
+            git commit -m "feat: build playable Pine Ridge survival foundation"
+            git push origin HEAD:chatgpt/afterdark-county
+          fi
 
       - uses: actions/setup-node@v4
         with:
