@@ -193,7 +193,7 @@ async function run() {
       appReady: Boolean(globalThis.afterdarkCounty),
       bootHidden: document.querySelector('#boot-screen')?.classList.contains('hidden') ?? false,
       canvasReady: Boolean(document.querySelector('#game-root canvas')),
-      hudReady: Boolean(document.querySelector('.hud-shell')),
+      hudReady: Boolean(document.querySelector('.hud')),
       bootText: document.querySelector('#boot-screen')?.textContent?.trim() ?? '',
       renderCalls: globalThis.afterdarkCounty?.renderer?.renderer?.info?.render?.calls ?? 0,
       player: globalThis.afterdarkCounty ? {
