@@ -224,12 +224,33 @@ export function createGasStation(materials) {
   }
 
   const canopy = new THREE.Group();
-  const canopyRoof = box(16, 0.72, 8, materials.whitePaint);
+  const canopyRoofMaterial = materials.roof.clone();
+  canopyRoofMaterial.color.set(0x37424a);
+  canopyRoofMaterial.roughness = 0.9;
+  const canopyRoof = box(16, 0.48, 8, canopyRoofMaterial);
   canopyRoof.position.set(-1.5, 5.35, 12.6);
   canopy.add(canopyRoof);
-  const redStripe = box(16.1, 0.55, 8.1, materials.redPaint);
-  redStripe.position.set(-1.5, 4.98, 12.6);
-  canopy.add(redStripe);
+
+  const canopyUndersideMaterial = new THREE.MeshStandardMaterial({
+    color: 0x6d6559,
+    roughness: 0.84,
+    emissive: 0x5c3115,
+    emissiveIntensity: 0.42
+  });
+  const canopyUnderside = box(15.45, 0.1, 7.45, canopyUndersideMaterial);
+  canopyUnderside.position.set(-1.5, 5.06, 12.6);
+  canopy.add(canopyUnderside);
+
+  for (const z of [8.68, 16.52]) {
+    const redEdge = box(16.15, 0.34, 0.28, materials.redPaint);
+    redEdge.position.set(-1.5, 5.12, z);
+    canopy.add(redEdge);
+  }
+  for (const x of [-9.42, 6.42]) {
+    const redEdge = box(0.28, 0.34, 7.55, materials.redPaint);
+    redEdge.position.set(x, 5.12, 12.6);
+    canopy.add(redEdge);
+  }
   for (const x of [-6.8, 3.8]) {
     const post = box(0.45, 5.1, 0.45, materials.metal);
     post.position.set(x, 2.55, 12.6);

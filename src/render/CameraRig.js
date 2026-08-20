@@ -10,11 +10,12 @@ export class CameraRig {
     this.camera = new THREE.OrthographicCamera(-20, 20, 12, -12, 0.1, 260);
     this.target = new THREE.Vector3();
     this.smoothedTarget = new THREE.Vector3();
-    this.yaw = Math.PI * 0.25;
+    this.yaw = -Math.PI * 0.25;
     this.targetYaw = this.yaw;
-    this.zoom = 25;
-    this.targetZoom = 25;
-    this.height = 31;
+    this.zoom = 26;
+    this.targetZoom = 26;
+    this.height = 32;
+    this.framingOffset = 4.4;
     this.raycaster = new THREE.Raycaster();
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.tempPoint = new THREE.Vector3();
@@ -35,12 +36,19 @@ export class CameraRig {
 
   /** @param {{ x: number, y?: number, z: number }} target @param {number} dt */
   update(target, dt) {
-    this.target.set(target.x, target.y ?? 0, target.z);
+    this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
+    this.zoom = damp(this.zoom, this.targetZoom, 10, dt);
+    const forwardX = -Math.sin(this.yaw);
+    const forwardZ = -Math.cos(this.yaw);
+    const framing = this.framingOffset * (this.zoom / 26);
+    this.target.set(
+      target.x + forwardX * framing,
+      target.y ?? 0,
+      target.z + forwardZ * framing
+    );
     this.smoothedTarget.x = damp(this.smoothedTarget.x, this.target.x, 7.5, dt);
     this.smoothedTarget.y = damp(this.smoothedTarget.y, this.target.y + 1.3, 7.5, dt);
     this.smoothedTarget.z = damp(this.smoothedTarget.z, this.target.z, 7.5, dt);
-    this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
-    this.zoom = damp(this.zoom, this.targetZoom, 10, dt);
     this.resize();
 
     const distance = this.zoom * 1.08;
