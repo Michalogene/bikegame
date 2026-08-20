@@ -7,9 +7,23 @@ on:
     paths:
       - 'bootstrap/**'
       - '.github/workflows/bootstrap-afterdark.yml'
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths:
+      - 'bootstrap/**'
+      - '.github/workflows/bootstrap-afterdark.yml'
 
 permissions:
   contents: write
+
+concurrency:
+  group: bootstrap-afterdark-source
+  cancel-in-progress: false
 
 jobs:
   unpack-verify-and-checkpoint:
@@ -31,6 +45,17 @@ jobs:
           tar -xzf /tmp/afterdark-source.tar.gz
           rm -rf bootstrap
           rm -f .github/workflows/bootstrap-afterdark.yml
+
+      - name: Commit reconstructed playable source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "feat: build playable Pine Ridge survival foundation"
+          git push origin HEAD:chatgpt/afterdark-county
 
       - uses: actions/setup-node@v4
         with:
@@ -57,16 +82,3 @@ jobs:
             reports
           if-no-files-found: warn
           retention-days: 7
-
-      - name: Commit playable Pine Ridge milestone
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '\nvendor/\nreports/\n' >> .gitignore
-          rm -rf vendor reports
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "feat: build playable Pine Ridge survival foundation"
-          git push origin HEAD:chatgpt/afterdark-county
