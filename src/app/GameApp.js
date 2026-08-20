@@ -17,6 +17,7 @@ import { RendererSystem } from '../render/Renderer.js';
 import { SaveSystem } from '../state/SaveSystem.js';
 import { Hud } from '../ui/Hud.js';
 import { WorldBuilder } from '../world/WorldBuilder.js';
+import { WorldPolish } from '../world/WorldPolish.js';
 
 export class GameApp {
   /** @param {{ gameRoot: HTMLElement, uiRoot: HTMLElement }} roots */
@@ -28,6 +29,7 @@ export class GameApp {
     this.state = this.save.load();
     this.renderer = new RendererSystem(this.gameRoot);
     this.world = new WorldBuilder(this.renderer.scene, this.state);
+    this.worldPolish = new WorldPolish(this.world);
     this.time = new TimeSystem(this.state);
     this.missions = new MissionSystem(this.state);
     this.crafting = new CraftingSystem(this.state);
@@ -172,6 +174,7 @@ export class GameApp {
     const lighting = this.time.lighting;
     this.renderer.updateLighting(lighting);
     this.world.update(this.player.position, lighting.night, this.elapsed);
+    this.worldPolish.update(this.player.position, lighting, this.elapsed, dt);
     this.hud.update(dt);
     this.renderer.render(this.camera.camera);
     this.input.endFrame();
@@ -196,6 +199,7 @@ export class GameApp {
     this.hud.dispose();
     this.input.dispose();
     this.camera.dispose();
+    this.worldPolish.dispose();
     this.renderer.dispose();
     window.removeEventListener('pagehide', this.handlePageHide);
     document.removeEventListener('visibilitychange', this.handleVisibility);
