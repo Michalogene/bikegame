@@ -4,6 +4,7 @@ import { AudioSystem } from '../audio/AudioSystem.js';
 import { EventBus } from '../core/EventBus.js';
 import { GameLoop } from '../core/GameLoop.js';
 import { EnemySystem } from '../entities/EnemySystem.js';
+import { EffectsSystem } from '../effects/EffectsSystem.js';
 import { Player } from '../entities/Player.js';
 import { BuildingSystem } from '../game/BuildingSystem.js';
 import { CombatSystem } from '../game/CombatSystem.js';
@@ -16,6 +17,7 @@ import { CameraRig } from '../render/CameraRig.js';
 import { RendererSystem } from '../render/Renderer.js';
 import { SaveSystem } from '../state/SaveSystem.js';
 import { Hud } from '../ui/Hud.js';
+import { MinimapRenderer } from '../ui/MinimapRenderer.js';
 import { WorldBuilder } from '../world/WorldBuilder.js';
 import { WorldPolish } from '../world/WorldPolish.js';
 
@@ -38,6 +40,14 @@ export class GameApp {
     this.enemies = new EnemySystem(this.state, this.world, this.building);
     this.combat = new CombatSystem(this.state, this.world, this.enemies, this.building);
     this.interaction = new InteractionSystem(this.state, this.world);
+    this.effects = new EffectsSystem(this.state, this.world, this.player);
+    this.minimapRenderer = new MinimapRenderer({
+      state: this.state,
+      world: this.world,
+      building: this.building,
+      missions: this.missions,
+      enemies: this.enemies
+    });
     this.camera = new CameraRig(this.gameRoot);
     this.camera.smoothedTarget.copy(this.player.position);
     this.input = new InputManager(this.renderer.renderer.domElement);
@@ -55,6 +65,7 @@ export class GameApp {
       onNewGame: () => this.newGame()
     });
     this.hud.setEnemySystem(this.enemies);
+    this.hud.drawMinimap = (canvas, large) => this.minimapRenderer.draw(canvas, large);
     this.loop = new GameLoop({
       fixedUpdate: (dt) => this.fixedUpdate(dt),
       render: (alpha, dt) => this.render(alpha, dt)
@@ -175,6 +186,7 @@ export class GameApp {
     this.renderer.updateLighting(lighting);
     this.world.update(this.player.position, lighting.night, this.elapsed);
     this.worldPolish.update(this.player.position, lighting, this.elapsed, dt);
+    this.effects.update(dt, this.aimPoint, this.elapsed, lighting);
     this.hud.update(dt);
     this.renderer.render(this.camera.camera);
     this.input.endFrame();
@@ -199,6 +211,7 @@ export class GameApp {
     this.hud.dispose();
     this.input.dispose();
     this.camera.dispose();
+    this.effects.dispose();
     this.worldPolish.dispose();
     this.renderer.dispose();
     window.removeEventListener('pagehide', this.handlePageHide);

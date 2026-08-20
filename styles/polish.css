@@ -1,0 +1,366 @@
+/* Visual pass 2 — layered HUD depth and reference-oriented presentation. */
+
+#ui-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: .055;
+  mix-blend-mode: soft-light;
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 3px),
+    radial-gradient(circle at 23% 17%, rgba(255,255,255,.24) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 68% 71%, rgba(255,255,255,.18) 0 1px, transparent 1.5px);
+  background-size: 100% 3px, 11px 13px, 17px 19px;
+}
+
+.hud::before {
+  content: "";
+  position: absolute;
+  inset: 79px 0 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 52% 55%, transparent 0 43%, rgba(2,5,6,.08) 68%, rgba(1,3,4,.34) 100%),
+    linear-gradient(90deg, rgba(4,8,10,.16), transparent 15%, transparent 84%, rgba(4,8,10,.18));
+}
+
+.panel-glass {
+  border-color: rgba(194,178,146,.29);
+  box-shadow:
+    0 15px 38px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.032),
+    inset 0 0 26px rgba(0,0,0,.12);
+}
+
+.top-hud {
+  height: 79px;
+  border-bottom-color: rgba(183,166,133,.21);
+  box-shadow: 0 12px 32px rgba(0,0,0,.34), inset 0 -1px rgba(255,255,255,.018);
+}
+
+.top-hud::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(227,108,25,.38) 12%, rgba(197,182,149,.13) 43%, transparent 82%);
+}
+
+.survivor-card {
+  background: linear-gradient(90deg, rgba(18,24,24,.8), rgba(7,12,14,.1));
+}
+
+.portrait {
+  box-shadow: inset 0 0 21px #000, 0 0 0 1px rgba(220,202,167,.16), 0 8px 16px rgba(0,0,0,.36);
+}
+
+.survivor-copy strong,
+.clock-card strong,
+.brand-mark strong {
+  text-rendering: geometricPrecision;
+}
+
+.resource-strip > div {
+  min-width: 58px;
+  justify-content: center;
+  text-shadow: 0 2px 3px #000;
+}
+
+.resource-strip > div::after {
+  content: "";
+  width: 1px;
+  height: 22px;
+  margin-left: 15px;
+  background: linear-gradient(transparent, rgba(202,188,159,.16), transparent);
+}
+
+.resource-strip > div:last-child::after { display: none; }
+
+.clock-card {
+  border-color: rgba(188,173,142,.11);
+  background: linear-gradient(180deg, rgba(4,8,10,.79), rgba(3,7,9,.48));
+}
+
+.top-navigation button {
+  position: relative;
+  overflow: hidden;
+}
+
+.top-navigation button::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform .2s ease;
+}
+
+.top-navigation button:hover::after { transform: scaleX(1); }
+.top-navigation button:hover span { color: #d8c6a2; filter: drop-shadow(0 0 8px rgba(221,172,105,.18)); }
+
+.brand-mark {
+  opacity: .92;
+  filter: drop-shadow(0 11px 21px rgba(0,0,0,.88));
+}
+
+.brand-mark strong {
+  background: linear-gradient(180deg, #f0ede7 0%, #b8b6b2 58%, #777976 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.right-status { gap: 8px; }
+
+.minimap-shell {
+  background: #111713;
+  border-width: 2px;
+  box-shadow: 0 10px 38px rgba(0,0,0,.78), inset 0 0 34px #000, 0 0 0 1px rgba(0,0,0,.7);
+}
+
+.minimap-shell strong {
+  top: 9px;
+  padding: 4px 0 6px;
+  background: linear-gradient(90deg, transparent, rgba(5,9,8,.74) 21%, rgba(5,9,8,.74) 79%, transparent);
+}
+
+.minimap-north { opacity: 0; }
+
+.safe-zone {
+  background: linear-gradient(90deg, rgba(5,10,11,.72), rgba(8,14,15,.94), rgba(5,10,11,.72));
+  box-shadow: inset 0 1px rgba(255,255,255,.018);
+}
+
+.nightfall-card {
+  overflow: hidden;
+  position: relative;
+}
+
+.nightfall-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -35% -110% 35%;
+  height: 170%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74,84,205,.18), transparent 65%);
+  pointer-events: none;
+}
+
+.nightfall-card.active .moon-orb {
+  animation: moon-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes moon-pulse {
+  0%, 100% { box-shadow: inset 0 0 12px rgba(255,255,255,.1), 0 0 13px rgba(63,79,255,.35); }
+  50% { box-shadow: inset 0 0 17px rgba(255,255,255,.18), 0 0 26px rgba(83,90,255,.58); }
+}
+
+.objectives {
+  background: linear-gradient(155deg, rgba(11,17,19,.94), rgba(5,10,12,.8));
+}
+
+.objectives h2 {
+  padding-bottom: 9px;
+  border-bottom: 1px solid rgba(197,181,148,.13);
+}
+
+.objective-row {
+  position: relative;
+  padding-left: 2px;
+}
+
+.objective-row.active {
+  color: #eee6d8;
+  text-shadow: 0 1px 3px #000;
+}
+
+.objective-row.active::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  background: linear-gradient(transparent, var(--accent), transparent);
+}
+
+.survival-bars {
+  background: linear-gradient(145deg, rgba(9,15,17,.94), rgba(4,9,11,.86));
+}
+
+.status-row > div {
+  position: relative;
+}
+
+.status-row > div::after {
+  content: "";
+  position: absolute;
+  inset: 1px auto 1px 50%;
+  width: 1px;
+  background: rgba(255,255,255,.14);
+}
+
+.status-row > div i {
+  position: relative;
+}
+
+.status-row > div i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent);
+  transform: translateX(-100%);
+  animation: status-sheen 5.5s ease-in-out infinite;
+}
+
+@keyframes status-sheen {
+  0%, 72% { transform: translateX(-105%); }
+  100% { transform: translateX(105%); }
+}
+
+.hotbar {
+  filter: drop-shadow(0 13px 24px rgba(0,0,0,.52));
+}
+
+.hotbar-slot {
+  background:
+    linear-gradient(155deg, rgba(20,26,27,.94), rgba(7,12,14,.93)),
+    radial-gradient(circle at 50% 35%, rgba(255,255,255,.05), transparent 60%);
+  border-color: rgba(184,171,145,.28);
+  transition: transform .17s ease, border-color .17s ease, background .17s ease, box-shadow .17s ease;
+}
+
+.hotbar-slot:hover {
+  transform: translateY(-4px);
+  border-color: rgba(222,199,156,.58);
+}
+
+.hotbar-slot.selected {
+  transform: translateY(-5px);
+  border-color: var(--accent);
+  background: linear-gradient(155deg, rgba(47,30,18,.96), rgba(10,14,15,.96));
+  box-shadow: 0 0 0 1px rgba(255,146,58,.18), 0 0 21px rgba(227,108,25,.17), inset 0 0 25px rgba(227,108,25,.06);
+}
+
+.hotbar-slot.selected::after {
+  content: "";
+  position: absolute;
+  left: 17%;
+  right: 17%;
+  bottom: -1px;
+  height: 2px;
+  background: #ff8b31;
+  box-shadow: 0 0 10px rgba(255,111,24,.75);
+}
+
+.slot-glyph {
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,.65));
+}
+
+.selected-item-label {
+  letter-spacing: .14em;
+  color: #cfc5b3;
+  text-shadow: 0 2px 5px #000;
+}
+
+.carry-weight {
+  background: linear-gradient(145deg, rgba(10,16,18,.94), rgba(5,10,12,.86));
+}
+
+.interaction-prompt {
+  border-color: rgba(217,193,150,.38);
+  background: linear-gradient(135deg, rgba(13,19,20,.96), rgba(6,11,13,.93));
+  box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 22px rgba(227,108,25,.06);
+}
+
+.interaction-prompt.visible {
+  animation: prompt-breathe 2.1s ease-in-out infinite;
+}
+
+@keyframes prompt-breathe {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, -3px); }
+}
+
+.control-hint {
+  color: rgba(196,188,174,.58);
+  text-shadow: 0 2px 4px #000;
+}
+
+.toast {
+  border-left: 2px solid var(--accent);
+  background: linear-gradient(90deg, rgba(20,14,10,.95), rgba(6,11,13,.93));
+}
+
+.game-panel {
+  border-color: rgba(198,181,148,.37);
+  box-shadow: 0 30px 85px rgba(0,0,0,.72), inset 0 1px rgba(255,255,255,.03);
+}
+
+.game-panel > header {
+  background: linear-gradient(90deg, rgba(25,22,18,.62), rgba(8,13,15,.22));
+}
+
+.panel-content {
+  background-image:
+    linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.01) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.item-card,
+.recipe-card,
+.mission-card,
+.buildable-card,
+.loot-grid article {
+  box-shadow: inset 0 1px rgba(255,255,255,.018), 0 8px 20px rgba(0,0,0,.1);
+}
+
+.item-card:hover,
+.recipe-card.available:hover,
+.buildable-card.available:hover,
+.loot-grid article:hover {
+  border-color: rgba(219,183,126,.48);
+  background-color: rgba(255,255,255,.025);
+}
+
+.large-map-shell {
+  border-color: rgba(198,179,142,.54);
+  background: #0c120f;
+  box-shadow: inset 0 0 80px #000, 0 18px 38px rgba(0,0,0,.28);
+}
+
+.large-map-shell canvas {
+  filter: saturate(.88) contrast(1.05);
+}
+
+.nightfall-overlay {
+  background: radial-gradient(circle, rgba(29,24,73,.5), rgba(2,5,9,.92) 60%);
+}
+
+.nightfall-overlay strong {
+  text-shadow: 0 0 22px rgba(102,111,255,.38), 0 5px 16px #000;
+}
+
+.damage-flash {
+  mix-blend-mode: screen;
+}
+
+@media (max-width: 1280px) {
+  .resource-strip > div::after { margin-left: 8px; }
+  .right-status { right: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nightfall-card.active .moon-orb,
+  .status-row > div i::after,
+  .interaction-prompt.visible {
+    animation: none;
+  }
+}

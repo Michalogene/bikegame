@@ -3,10 +3,10 @@
 ## Current state
 
 - Branch: `chatgpt/afterdark-county`
-- Milestone: playable Pine Ridge vertical slice with first composition and lighting pass
-- Build: production build succeeds on GitHub Actions
-- Tests: static/syntax checks, critical `checkJs`, 11 deterministic unit tests, and Chromium gameplay smoke pass
-- Browser proof: Pine Ridge renders, the HUD reaches ready state, no page errors are reported, and simulated movement changes the survivor position
+- Milestone: playable Pine Ridge vertical slice with the second environment, mapping, UI, and game-feel pass in progress
+- Build: the last browser-verified production build succeeds; the newest visual modules pass local JavaScript syntax and repository size/style checks and still require the next Chromium proof
+- Tests: 11 deterministic unit tests and the existing Chromium gameplay smoke passed at the prior verified checkpoint
+- Browser proof: the verified checkpoint renders Pine Ridge, reaches HUD-ready state without page errors, and responds to simulated player movement
 - Primary references: supplied nighttime Pine Ridge scene/HUD and trench excavation scene
 
 ## Completed
@@ -22,19 +22,23 @@
 - Added dynamic time/lighting, missions, circular minimap, reference-inspired HUD and panels, synthesized audio feedback, autosave, and save restoration.
 - Added deterministic tests for inventory, crafting, state persistence, survival actions, damage, day rollover, and Nightfall transitions.
 - Added an automated Chromium smoke proof that verifies the rendered canvas, HUD, boot completion, render calls, input-driven movement, console cleanliness, and screenshot generation.
-- Completed visual pass 1: camera now frames Pine Ridge ahead of the survivor, the default isometric quadrant matches the reference composition more closely, night exposure and cool fill are more readable, the gas-station canopy has a dark roof with warm underside lighting, and the oversized brand/vignette were reduced.
+- Completed visual pass 1: stronger default composition, more readable night exposure, improved cold fill, a less obstructive station canopy, and a quieter vignette/brand treatment.
+- Completed environment pass 2 foundation: layered road shoulders, gravel, potholes, cracks, puddles, oil stains, gutters, roof utilities, bollards, pallets, a dumpster, propane storage, roadside clutter, instanced ground cover, drifting mist, fireflies, Nightfall rain, and lightning.
+- Added a dedicated gameplay-effects layer with a visible flashlight volume, context-sensitive aim marker, muzzle flash, melee arc, blood/soil/construction particles, ground pulses, and bounded decals.
+- Rebuilt minimap rendering around a local player-centered tactical view and a full district map with recognizable roads, buildings, forest, trenches, camp structures, objectives, POIs, hostile contacts, coordinates, flashlight cone, and a clearer player arrow.
+- Added a non-destructive CSS polish layer for stronger hierarchy, panel depth, hotbar feedback, status readability, minimap framing, and Nightfall presentation.
 
 ## Current work
 
-- Visual pass 2: compare the new browser screenshot directly against the references and improve the largest remaining scene-readability, environment-density, facade, character-silhouette, minimap, and UI gaps.
+- Run the second-pass browser smoke/screenshot proof, correct any runtime-only WebGL or composition regressions, then improve survivor and infected silhouettes.
 
 ## Next priorities
 
-1. Inspect the post-pass Chromium screenshot and correct any over-bright, over-dark, cropped, or poorly composed regions.
-2. Improve Pine Ridge terrain layering, road shoulders, decals, facade depth, roof silhouettes, windows, and prop clusters.
-3. Upgrade survivor and infected silhouettes, animation readability, flashlight presentation, and combat impact feedback.
-4. Improve the minimap with recognizable roads, POIs, explored terrain, objective markers, and a clearer player arrow.
-5. Add fuller weather, environmental ambience, and legally compatible field-recorded audio.
+1. Execute Chromium verification for the new environment, effects, minimap, and CSS modules and inspect the generated screenshot against the references.
+2. Correct any over-bright rain, mist occlusion, decal depth conflict, minimap clipping, or HUD overlap discovered by the browser proof.
+3. Upgrade survivor and infected silhouettes, held-equipment presentation, animation readability, flashlight origin, and hit reactions.
+4. Improve Food Mart and residential facade damage, interior dressing, roof silhouettes, windows, and hand-authored prop clusters.
+5. Add quality-scaled weather density and fuller environmental ambience with legally compatible field-recorded audio.
 6. Expand beyond Pine Ridge with forest, farm, school, lumber yard, and river POIs using streamed chunks.
 7. Replace steering-only enemy navigation with a dynamic navigation solution that responds to trenches and player structures.
 8. Add storage transfer UI, equipment slots, durability, and more meaningful blueprint progression.
@@ -46,10 +50,11 @@ See `KNOWN_ISSUES.md`.
 
 ## Visual quality status
 
-The playable scene now has the intended default camera quadrant, stronger nighttime readability, a less obstructive gas-station canopy, reduced vignette, and a HUD hierarchy closer to the supplied reference. It is still materially below the reference in handcrafted texture detail, terrain decals, facade complexity, character animation, prop density, minimap fidelity, atmospheric VFX, and audio depth. Those gaps remain active work and are not considered complete.
+Pine Ridge now has substantially more surface breakup, roadside density, facade utility detail, atmosphere, weather, feedback effects, and map legibility than the first verified pass. It remains materially below the references in handcrafted texture detail, unique building damage, character animation, interior richness, cinematic camera reactions, authored audio, and overall county scale. The new pass has not yet received a fresh Chromium screenshot proof, so parity is not claimed.
 
 ## Last verified checkpoint
 
 - Browser-verified playable foundation: `ce513736caa893ab1958fcb704d3f3f6ad579dc3`
-- Visual pass 1 checkpoint: `ec598d1f617dc932966ba01c221d5b7287e4afd8`
-- Verification at visual-pass creation: build, 11 tests, and Chromium smoke succeeded before the visual commit was pushed.
+- Browser-verified visual pass 1: `ec598d1f617dc932966ba01c221d5b7287e4afd8`
+- Visual-pass bookkeeping cleanup: `fecc416299cc3d51c8dd5492c68ad033d6de1427`
+- Environment/atmosphere pass 2 checkpoint: `96fde38539676fdafe87162c4ada352d54550ad4` (syntax/static authoring checks passed; browser proof pending)
