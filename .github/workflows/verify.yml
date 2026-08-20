@@ -4,14 +4,29 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm install
+      - run: npm install --no-audit --no-fund
       - run: npm run verify
+      - run: npm run smoke
+        env:
+          CHROME_BIN: google-chrome
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: afterdark-county-verification
+          path: |
+            dist
+            reports
+          if-no-files-found: warn
+          retention-days: 7
