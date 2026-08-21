@@ -5,7 +5,7 @@ import { getItem } from '../data/items.js';
 import { MISSION_DEFINITIONS } from '../data/missions.js';
 import { Inventory } from './Inventory.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export class GameState {
   /** @param {import('../core/EventBus.js').EventBus} bus */
@@ -18,19 +18,29 @@ export class GameState {
       stamina: 64,
       hydration: 68,
       hunger: 55,
-      temperature: 8,
+      temperature: 12,
       bleeding: 0
     };
     this.clock = {
-      day: 3,
-      minute: 22 * 60 + 47,
+      day: 1,
+      minute: 8 * 60,
       speed: 0.75,
+      paused: false,
       nightfallActive: false,
       nightfallEndsAt: 0,
-      lastNightfallDay: 2
+      lastNightfallDay: 0
+    };
+    this.dead = false;
+    this.respawn = {
+      pending: false,
+      remaining: 0,
+      protectedUntil: Date.now() + 45000,
+      lastDeath: null,
+      lastSpawn: { id: 'pine-ridge-crossroad', x: -7, z: 8 }
     };
     this.flashlightOn = true;
     this.openedContainers = new Set();
+    this.collectedWorldLoot = new Set();
     /** @type {Record<string, { id: string, x: number, z: number, rotation: number, kind: string }>} */
     this.structures = {};
     /** @type {{ x: number, z: number, radius: number, depth: number }[]} */
@@ -77,6 +87,7 @@ export class GameState {
 
   /** @param {number} dt @param {{ moving: boolean, sprinting: boolean, nearFire: boolean }} context */
   updateSurvival(dt, context) {
+    if (this.dead) return;
     this.playSeconds += dt;
     const s = this.survival;
     s.hydration = clamp(s.hydration - dt * (context.sprinting ? 0.032 : 0.012), 0, 100);
@@ -97,7 +108,7 @@ export class GameState {
     if (s.hydration <= 0 || s.hunger <= 0 || s.temperature < 0) {
       s.health = clamp(s.health - dt * 0.7, 0, 100);
     }
-    if (s.health <= 0) this.bus.emit('player:died');
+    if (s.health <= 0) this.markDead('Survival exposure');
   }
 
   /** @param {string} itemId */
@@ -119,11 +130,21 @@ export class GameState {
 
   /** @param {number} amount @param {string} [source] */
   damage(amount, source = 'Unknown') {
-    if (amount <= 0 || this.survival.health <= 0) return;
+    if (amount <= 0 || this.dead || this.survival.health <= 0) return;
+    if (Date.now() < this.respawn.protectedUntil) return;
     this.survival.health = clamp(this.survival.health - amount, 0, 100);
     if (amount >= 9) this.survival.bleeding = clamp(this.survival.bleeding + amount * 0.45, 0, 100);
     this.bus.emit('player:damaged', { amount, source });
-    if (this.survival.health <= 0) this.bus.emit('player:died', { source });
+    if (this.survival.health <= 0) this.markDead(source);
+  }
+
+  /** @param {string} source */
+  markDead(source = 'Unknown') {
+    if (this.dead) return false;
+    this.dead = true;
+    this.survival.health = 0;
+    this.bus.emit('player:died', { source });
+    return true;
   }
 
   /** @param {number} amount */
@@ -156,8 +177,11 @@ export class GameState {
       player: { ...this.player },
       survival: { ...this.survival },
       clock: { ...this.clock },
+      dead: this.dead,
+      respawn: structuredClone(this.respawn),
       flashlightOn: this.flashlightOn,
       openedContainers: [...this.openedContainers],
+      collectedWorldLoot: [...this.collectedWorldLoot],
       structures: Object.values(this.structures).map((structure) => ({ ...structure })),
       terrainEdits: this.terrainEdits.map((edit) => ({ ...edit })),
       discoveredPoi: [...this.discoveredPoi],
@@ -178,8 +202,11 @@ export class GameState {
     if (data.player) Object.assign(state.player, data.player);
     if (data.survival) Object.assign(state.survival, data.survival);
     if (data.clock) Object.assign(state.clock, data.clock);
+    state.dead = Boolean(data.dead) || state.survival.health <= 0;
+    if (data.respawn && typeof data.respawn === 'object') Object.assign(state.respawn, data.respawn);
     state.flashlightOn = data.flashlightOn !== false;
     state.openedContainers = new Set(Array.isArray(data.openedContainers) ? data.openedContainers : []);
+    state.collectedWorldLoot = new Set(Array.isArray(data.collectedWorldLoot) ? data.collectedWorldLoot : []);
     state.structures = {};
     for (const structure of Array.isArray(data.structures) ? data.structures : []) {
       if (structure?.id) state.structures[structure.id] = { ...structure };
