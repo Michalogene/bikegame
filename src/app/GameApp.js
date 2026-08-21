@@ -222,6 +222,7 @@ export class GameApp {
     this.hud.dispose();
     this.input.dispose();
     this.camera.dispose();
+    this.visualTuning.dispose();
     this.effects.dispose();
     this.worldPolish.dispose();
     this.renderer.dispose();

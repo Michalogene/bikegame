@@ -8,8 +8,8 @@ export class RendererSystem {
   constructor(root) {
     this.root = root;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0d1c24);
-    this.scene.fog = new THREE.FogExp2(0x0d1c24, 0.0085);
+    this.scene.background = new THREE.Color(0x10232d);
+    this.scene.fog = new THREE.FogExp2(0x10232d, 0.0074);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -18,14 +18,14 @@ export class RendererSystem {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 1.27;
     this.renderer.domElement.setAttribute('aria-label', 'Afterdark County 3D world');
     root.append(this.renderer.domElement);
 
-    this.hemisphere = new THREE.HemisphereLight(0x829fba, 0x243128, 1.32);
+    this.hemisphere = new THREE.HemisphereLight(0x8caac5, 0x29372c, 1.42);
     this.scene.add(this.hemisphere);
 
-    this.keyLight = new THREE.DirectionalLight(0xa6bfd9, 2.55);
+    this.keyLight = new THREE.DirectionalLight(0xabc5df, 2.62);
     this.keyLight.position.set(-42, 58, 30);
     this.keyLight.castShadow = true;
     this.keyLight.shadow.mapSize.set(2048, 2048);
@@ -38,7 +38,7 @@ export class RendererSystem {
     this.keyLight.shadow.bias = -0.00045;
     this.scene.add(this.keyLight);
 
-    this.fillLight = new THREE.DirectionalLight(0x466e91, 0.92);
+    this.fillLight = new THREE.DirectionalLight(0x4d779d, 1.02);
     this.fillLight.position.set(38, 24, -45);
     this.scene.add(this.fillLight);
 
@@ -57,29 +57,29 @@ export class RendererSystem {
     const daylight = clamp(lighting.daylight, 0, 1);
     const night = clamp(lighting.night, 0, 1);
     const storm = clamp(lighting.storm, 0, 1);
-    this.hemisphere.intensity = lerp(0.96, 1.5, daylight) * (1 - storm * 0.18);
+    this.hemisphere.intensity = lerp(1.04, 1.54, daylight) * (1 - storm * 0.16);
     this.hemisphere.color.setRGB(
-      lerp(0.4, 0.69, daylight),
-      lerp(0.53, 0.8, daylight),
-      lerp(0.68, 0.93, daylight)
+      lerp(0.43, 0.7, daylight),
+      lerp(0.57, 0.81, daylight),
+      lerp(0.72, 0.94, daylight)
     );
-    this.hemisphere.groundColor.setRGB(0.11, lerp(0.15, 0.21, daylight), 0.105);
-    this.keyLight.intensity = lerp(2.6, 3.35, daylight) * (1 - storm * 0.32);
+    this.hemisphere.groundColor.setRGB(0.13, lerp(0.17, 0.22, daylight), 0.12);
+    this.keyLight.intensity = lerp(2.65, 3.35, daylight) * (1 - storm * 0.3);
     this.keyLight.color.setRGB(
-      lerp(0.58, 1.0, daylight),
-      lerp(0.7, 0.88, daylight),
-      lerp(0.9, 0.71, daylight)
+      lerp(0.61, 1.0, daylight),
+      lerp(0.73, 0.88, daylight),
+      lerp(0.93, 0.71, daylight)
     );
-    this.fillLight.intensity = 0.58 + night * 0.52;
+    this.fillLight.intensity = 0.7 + night * 0.62;
     const fogColor = new THREE.Color().setRGB(
-      lerp(0.045, 0.27, daylight),
-      lerp(0.082, 0.35, daylight),
-      lerp(0.105, 0.39, daylight)
+      lerp(0.055, 0.27, daylight),
+      lerp(0.095, 0.35, daylight),
+      lerp(0.12, 0.39, daylight)
     );
     this.scene.background.copy(fogColor);
     this.scene.fog.color.copy(fogColor);
-    this.scene.fog.density = lerp(0.0084, 0.0054, daylight) + storm * 0.0042;
-    this.renderer.toneMappingExposure = lerp(1.22, 1.08, daylight) - storm * 0.05;
+    this.scene.fog.density = lerp(0.0074, 0.0053, daylight) + storm * 0.0038;
+    this.renderer.toneMappingExposure = lerp(1.28, 1.09, daylight) - storm * 0.035;
   }
 
   /** @param {any} camera */

@@ -214,17 +214,58 @@ async function run() {
     throw new Error(`Game did not reach a rendered playable state: ${JSON.stringify(diagnostics)}`);
   }
 
+  await protocol.send('Page.bringToFront');
+  await evaluate(protocol, `(() => {
+    window.focus();
+    document.querySelector('#game-root canvas')?.focus?.();
+    return document.visibilityState;
+  })()`);
+  await delay(120);
   const before = state.player;
-  await evaluate(protocol, `window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true }));`);
-  await delay(700);
-  await evaluate(protocol, `window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW', bubbles: true }));`);
-  await delay(150);
-  const after = await evaluate(protocol, `({
-    x: globalThis.afterdarkCounty.state.player.x,
-    z: globalThis.afterdarkCounty.state.player.z
-  })`);
-  const movement = Math.hypot(after.x - before.x, after.z - before.z);
-  if (movement < 0.03) throw new Error(`Player input smoke test did not move the survivor (${movement}).`);
+  const inputAttempts = [
+    { code: 'KeyW', key: 'w', virtualKeyCode: 87, duration: 850 },
+    { code: 'KeyD', key: 'd', virtualKeyCode: 68, duration: 700 }
+  ];
+  let after = { ...before };
+  let movement = 0;
+  for (const attempt of inputAttempts) {
+    await protocol.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: attempt.key,
+      code: attempt.code,
+      windowsVirtualKeyCode: attempt.virtualKeyCode,
+      nativeVirtualKeyCode: attempt.virtualKeyCode
+    });
+    await delay(attempt.duration);
+    await protocol.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: attempt.key,
+      code: attempt.code,
+      windowsVirtualKeyCode: attempt.virtualKeyCode,
+      nativeVirtualKeyCode: attempt.virtualKeyCode
+    });
+    await delay(220);
+    after = await evaluate(protocol, `({
+      x: globalThis.afterdarkCounty.state.player.x,
+      z: globalThis.afterdarkCounty.state.player.z
+    })`);
+    movement = Math.hypot(after.x - before.x, after.z - before.z);
+    if (movement >= 0.03) break;
+  }
+  if (movement < 0.03) {
+    const inputDiagnostics = await evaluate(protocol, `({
+      visibility: document.visibilityState,
+      loopRunning: globalThis.afterdarkCounty?.loop?.running ?? false,
+      activePanel: globalThis.afterdarkCounty?.hud?.activePanel ?? null,
+      dead: globalThis.afterdarkCounty?.dead ?? null,
+      keys: [...(globalThis.afterdarkCounty?.input?.keys ?? [])],
+      player: globalThis.afterdarkCounty?.state?.player ?? null
+    })`);
+    const failureShot = await protocol.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await writeFile(join(reports, 'pine-ridge-input-failure.png'), Buffer.from(failureShot.data, 'base64'));
+    await writeFile(join(reports, 'browser-input-failure.json'), `${JSON.stringify({ before, after, movement, inputDiagnostics, pageErrors }, null, 2)}\n`);
+    throw new Error(`Player input smoke test did not move the survivor (${movement}): ${JSON.stringify(inputDiagnostics)}`);
+  }
 
   const screenshot = await protocol.send('Page.captureScreenshot', {
     format: 'png',
