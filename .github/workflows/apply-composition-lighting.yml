@@ -1,0 +1,67 @@
+name: apply composition lighting pass
+
+on:
+  push:
+    branches:
+      - chatgpt/afterdark-county
+    paths:
+      - bootstrap/composition-lighting.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: afterdark-composition-lighting
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/afterdark-county
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply composition and input patch
+        shell: bash
+        run: |
+          base64 --decode < bootstrap/composition-input.patch.gz.b64 | gzip --decompress > /tmp/composition-input.patch
+          git apply --check /tmp/composition-input.patch
+          git apply /tmp/composition-input.patch
+          git rm -r --ignore-unmatch reports
+          rm bootstrap/composition-input.patch.gz.b64
+          rm bootstrap/composition-lighting.trigger
+          rm .github/workflows/apply-composition-lighting.yml
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+      - name: Chromium smoke pass one
+        run: npm run smoke
+        env:
+          CHROME_BIN: google-chrome
+          SMOKE_PORT: 8766
+          SMOKE_DEBUG_PORT: 9223
+      - name: Chromium smoke pass two
+        run: npm run smoke
+        env:
+          CHROME_BIN: google-chrome
+          SMOKE_PORT: 8767
+          SMOKE_DEBUG_PORT: 9224
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: afterdark-composition-proof
+          path: reports
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Commit verified pass
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "visual: rebalance Pine Ridge composition and lighting"
+          git push origin HEAD:chatgpt/afterdark-county
