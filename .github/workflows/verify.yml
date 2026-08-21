@@ -5,8 +5,7 @@ on:
     branches:
       - chatgpt/afterdark-county
     paths:
-      - 'bootstrap/workspace-snapshot.manifest'
-      - 'bootstrap/workspace-snapshot.part-*'
+      - 'bootstrap/wip-respawn-camera-interiors.patch.gz.b64'
       - '.github/workflows/verify.yml'
   pull_request:
 
@@ -27,28 +26,25 @@ jobs:
           ref: chatgpt/afterdark-county
           fetch-depth: 0
 
-      - name: Detect staged workspace snapshot
-        id: snapshot
+      - name: Detect preserved gameplay WIP
+        id: wip
         shell: bash
         run: |
-          if [[ -f bootstrap/workspace-snapshot.manifest ]]; then
+          if [[ -f bootstrap/wip-respawn-camera-interiors.patch.gz.b64 ]]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Restore staged workspace snapshot
-        if: steps.snapshot.outputs.present == 'true'
+      - name: Decode and apply preserved gameplay WIP
+        if: steps.wip.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          cat bootstrap/workspace-snapshot.part-* > /tmp/workspace.tar.gz.b64
-          base64 --decode /tmp/workspace.tar.gz.b64 > /tmp/workspace.tar.gz
-          expected="$(awk '$2 == "workspace.tar.gz" { print $1 }' bootstrap/workspace-snapshot.manifest)"
-          echo "${expected}  /tmp/workspace.tar.gz" | sha256sum --check -
-          rm -rf src scripts styles tests
-          rm -f .gitignore ARCHITECTURE.md ASSET_LICENSES.md KNOWN_ISSUES.md PROGRESS.md README.md index.html package-lock.json package.json tsconfig.json
-          tar -xzf /tmp/workspace.tar.gz
+          base64 --decode bootstrap/wip-respawn-camera-interiors.patch.gz.b64 | gzip -d > /tmp/afterdark-wip.patch
+          git apply --check /tmp/afterdark-wip.patch
+          git apply /tmp/afterdark-wip.patch
+          git diff --check
 
       - uses: actions/setup-node@v4
         with:
@@ -57,7 +53,7 @@ jobs:
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Verify gameplay workspace
+      - name: Verify gameplay WIP
         run: npm run verify
 
       - name: Run Chromium gameplay proof
@@ -65,17 +61,17 @@ jobs:
         env:
           CHROME_BIN: google-chrome
 
-      - name: Commit verified workspace snapshot
-        if: steps.snapshot.outputs.present == 'true'
+      - name: Commit verified gameplay WIP
+        if: steps.wip.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm bootstrap/workspace-snapshot.manifest bootstrap/workspace-snapshot.part-*
+          git rm bootstrap/wip-respawn-camera-interiors.patch.gz.b64
           git add -A -- src scripts styles tests .gitignore ARCHITECTURE.md ASSET_LICENSES.md KNOWN_ISSUES.md PROGRESS.md README.md index.html package-lock.json package.json tsconfig.json
           git diff --cached --check
-          git commit -m "checkpoint: apply respawn camera interior workspace"
+          git commit -m "checkpoint: apply respawn camera and interior fixes"
           git push origin HEAD:chatgpt/afterdark-county
 
       - name: Package downloadable source and browser build
