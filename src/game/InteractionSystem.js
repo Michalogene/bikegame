@@ -1,5 +1,7 @@
 // @ts-check
 
+import { selectWorldLootTarget } from './WorldLootSystem.js';
+
 export class InteractionSystem {
   /** @param {import('../state/GameState.js').GameState} state @param {import('../world/WorldBuilder.js').WorldBuilder} world */
   constructor(state, world) {
@@ -9,15 +11,22 @@ export class InteractionSystem {
     this.activeContainer = null;
   }
 
-  /** @param {number} x @param {number} z */
-  update(x, z) {
-    this.nearby = this.world.getNearestInteractable(x, z, 3.6);
+  /** @param {number} x @param {number} z @param {number} [rotation] */
+  update(x, z, rotation = this.state.player.rotation) {
+    const local = this.world.interactables.filter((entry) => {
+      if (entry.type === 'container' && entry.items.length === 0) return false;
+      if (entry.used || entry.collected) return false;
+      return Math.hypot(entry.x - x, entry.z - z) <= Math.max(4.2, entry.radius ?? 3.4);
+    });
+    const worldLoot = selectWorldLootTarget({ x, z, rotation }, local, 3.2);
+    this.nearby = worldLoot ?? this.world.getNearestInteractable(x, z, 3.6, { excludeTypes: ['world-loot'] });
     return this.nearby;
   }
 
   interact() {
     const target = this.nearby;
     if (!target) return false;
+    if (target.type === 'world-loot') return target.pickup() > 0;
     if (target.type === 'container') {
       this.activeContainer = target;
       target.opened = true;
@@ -39,8 +48,11 @@ export class InteractionSystem {
   }
 
   closeContainer() {
+    if (!this.activeContainer) return false;
+    const previous = this.activeContainer;
     this.activeContainer = null;
-    this.state.bus.emit('container:close');
+    this.state.bus.emit('container:close', previous);
+    return true;
   }
 
   /** @param {string} itemId @param {number} [quantity] */
