@@ -54,9 +54,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/apply-interiors.yml bootstrap/interiors.patch.gz.b64
-          git show c1b722ec15ff56a8788e48a8a7c88956de8ee489:.github/workflows/verify.yml > .github/workflows/verify.yml
-          git add .github/workflows/verify.yml src/app/GameApp.js src/render/CameraRig.js src/world/InteriorSystem.js src/world/WorldBuilder.js src/world/WorldFactories.js src/world/WorldPolish.js tests/interiors.test.js
+          git rm bootstrap/interiors.patch.gz.b64
+          git add src/app/GameApp.js src/render/CameraRig.js src/world/InteriorSystem.js src/world/WorldBuilder.js src/world/WorldFactories.js src/world/WorldPolish.js tests/interiors.test.js
           git diff --cached --check
           git commit -m "feat: add playable building interiors"
           git push origin HEAD:chatgpt/afterdark-county
