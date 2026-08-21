@@ -2,62 +2,80 @@ name: verify
 
 on:
   push:
+    branches:
+      - chatgpt/afterdark-county
+    paths:
+      - 'bootstrap/workspace-snapshot.manifest'
+      - 'bootstrap/workspace-snapshot.part-*'
+      - '.github/workflows/verify.yml'
   pull_request:
 
 permissions:
   contents: write
 
+concurrency:
+  group: afterdark-verify-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/afterdark-county
           fetch-depth: 0
 
-      - name: Detect staged interiors checkpoint
-        id: staged-interiors
+      - name: Detect staged workspace snapshot
+        id: snapshot
         shell: bash
         run: |
-          if [[ -f bootstrap/interiors.patch.gz.b64 ]]; then
+          if [[ -f bootstrap/workspace-snapshot.manifest ]]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Decode and apply staged interiors checkpoint
-        if: steps.staged-interiors.outputs.present == 'true'
+      - name: Restore staged workspace snapshot
+        if: steps.snapshot.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode bootstrap/interiors.patch.gz.b64 | gzip -d > /tmp/interiors.patch
-          echo "7639cb2074693629e40af48dbcd179bb6eb44aa022526879dfd05aa0a4332034  /tmp/interiors.patch" | sha256sum --check -
-          git apply --check /tmp/interiors.patch
-          git apply /tmp/interiors.patch
+          cat bootstrap/workspace-snapshot.part-* > /tmp/workspace.tar.gz.b64
+          base64 --decode /tmp/workspace.tar.gz.b64 > /tmp/workspace.tar.gz
+          expected="$(awk '$2 == "workspace.tar.gz" { print $1 }' bootstrap/workspace-snapshot.manifest)"
+          echo "${expected}  /tmp/workspace.tar.gz" | sha256sum --check -
+          rm -rf src scripts styles tests
+          rm -f .gitignore ARCHITECTURE.md ASSET_LICENSES.md KNOWN_ISSUES.md PROGRESS.md README.md index.html package-lock.json package.json tsconfig.json
+          tar -xzf /tmp/workspace.tar.gz
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - run: npm install --no-audit --no-fund
-      - run: npm run verify
-      - run: npm run smoke
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify gameplay workspace
+        run: npm run verify
+
+      - name: Run Chromium gameplay proof
+        run: npm run smoke
         env:
           CHROME_BIN: google-chrome
 
-      - name: Commit verified interiors checkpoint
-        if: steps.staged-interiors.outputs.present == 'true'
+      - name: Commit verified workspace snapshot
+        if: steps.snapshot.outputs.present == 'true'
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm bootstrap/interiors.patch.gz.b64
-          git add src/app/GameApp.js src/render/CameraRig.js src/world/InteriorSystem.js src/world/WorldBuilder.js src/world/WorldFactories.js src/world/WorldPolish.js tests/interiors.test.js
+          git rm bootstrap/workspace-snapshot.manifest bootstrap/workspace-snapshot.part-*
+          git add -A -- src scripts styles tests .gitignore ARCHITECTURE.md ASSET_LICENSES.md KNOWN_ISSUES.md PROGRESS.md README.md index.html package-lock.json package.json tsconfig.json
           git diff --cached --check
-          git commit -m "feat: add playable building interiors"
+          git commit -m "checkpoint: apply respawn camera interior workspace"
           git push origin HEAD:chatgpt/afterdark-county
 
       - name: Package downloadable source and browser build
