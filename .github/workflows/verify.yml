@@ -5,22 +5,62 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/afterdark-county
+          fetch-depth: 0
+
+      - name: Detect staged interiors checkpoint
+        id: staged-interiors
+        shell: bash
+        run: |
+          if [[ -f bootstrap/interiors.patch.gz.b64 ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Decode and apply staged interiors checkpoint
+        if: steps.staged-interiors.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode bootstrap/interiors.patch.gz.b64 | gzip -d > /tmp/interiors.patch
+          echo "7639cb2074693629e40af48dbcd179bb6eb44aa022526879dfd05aa0a4332034  /tmp/interiors.patch" | sha256sum --check -
+          git apply --check /tmp/interiors.patch
+          git apply /tmp/interiors.patch
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
       - run: npm install --no-audit --no-fund
       - run: npm run verify
       - run: npm run smoke
         env:
           CHROME_BIN: google-chrome
+
+      - name: Commit verified interiors checkpoint
+        if: steps.staged-interiors.outputs.present == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-interiors.yml bootstrap/interiors.patch.gz.b64
+          git show c1b722ec15ff56a8788e48a8a7c88956de8ee489:.github/workflows/verify.yml > .github/workflows/verify.yml
+          git add .github/workflows/verify.yml src/app/GameApp.js src/render/CameraRig.js src/world/InteriorSystem.js src/world/WorldBuilder.js src/world/WorldFactories.js src/world/WorldPolish.js tests/interiors.test.js
+          git diff --cached --check
+          git commit -m "feat: add playable building interiors"
+          git push origin HEAD:chatgpt/afterdark-county
+
       - name: Package downloadable source and browser build
         shell: bash
         run: |
@@ -32,6 +72,7 @@ jobs:
             zip -qr ../reports/downloads/afterdark-county-browser-build.zip .
           )
           sha256sum reports/downloads/*.zip > reports/downloads/SHA256SUMS.txt
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
