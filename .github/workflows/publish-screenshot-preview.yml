@@ -1,0 +1,80 @@
+name: publish compact visual proof
+
+on:
+  push:
+    branches:
+      - chatgpt/afterdark-county
+    paths:
+      - bootstrap/screenshot-preview.trigger
+
+permissions:
+  contents: write
+
+concurrency:
+  group: afterdark-screenshot-preview
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/afterdark-county
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate compact text preview
+        shell: bash
+        run: |
+          cat > bootstrap/preview.html <<'HTML'
+          <!doctype html>
+          <html><body><img id="source" src="/reports/pine-ridge-smoke.png"><script>
+          const image = document.querySelector('#source');
+          image.addEventListener('load', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 560;
+            canvas.height = Math.round(image.naturalHeight * canvas.width / image.naturalWidth);
+            const context = canvas.getContext('2d');
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            document.body.textContent = canvas.toDataURL('image/jpeg', 0.42).split(',')[1];
+            document.body.dataset.ready = 'true';
+          });
+          </script></body></html>
+          HTML
+          PORT=8770 node scripts/serve.mjs >/tmp/afterdark-preview-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill ${SERVER_PID} 2>/dev/null || true' EXIT
+          sleep 1
+          google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars --virtual-time-budget=6000 --dump-dom http://127.0.0.1:8770/bootstrap/preview.html > /tmp/preview-dom.html
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const html = readFileSync('/tmp/preview-dom.html', 'utf8');
+          const body = html.match(/<body[^>]*data-ready="true"[^>]*>([A-Za-z0-9+/=\s]+)<\/body>/);
+          if (!body) throw new Error('Compact preview was not generated.');
+          const encoded = body[1].replace(/\s+/g, '');
+          if (encoded.length < 1000) throw new Error('Compact preview is unexpectedly small.');
+          writeFileSync('/tmp/preview.b64', encoded);
+          writeFileSync('/tmp/preview-meta.json', JSON.stringify({
+            sourceCommit: process.env.GITHUB_SHA,
+            format: 'image/jpeg',
+            width: 560,
+            base64Length: encoded.length
+          }, null, 2));
+          NODE
+          rm -rf reports/preview
+          mkdir -p reports/preview
+          split -b 12000 -d -a 2 --additional-suffix=.txt /tmp/preview.b64 reports/preview/part-
+          cp /tmp/preview-meta.json reports/preview/meta.json
+          rm bootstrap/preview.html bootstrap/screenshot-preview.trigger
+          rm .github/workflows/publish-screenshot-preview.yml
+      - name: Commit preview proof
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: publish compact visual proof"
+          git push origin HEAD:chatgpt/afterdark-county
