@@ -1,0 +1,49 @@
+name: apply visual framing pass
+
+on:
+  push:
+    branches:
+      - chatgpt/afterdark-county
+    paths:
+      - bootstrap/character-framing-pass.patch.gz.b64
+
+permissions:
+  contents: write
+
+concurrency:
+  group: afterdark-visual-framing-pass
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/afterdark-county
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Decode and apply visual pass
+        shell: bash
+        run: |
+          base64 --decode < bootstrap/character-framing-pass.patch.gz.b64 | gzip --decompress > /tmp/character-framing-pass.patch
+          git apply --check /tmp/character-framing-pass.patch
+          git apply /tmp/character-framing-pass.patch
+          rm bootstrap/character-framing-pass.patch.gz.b64
+          rm .github/workflows/apply-visual-framing-pass.yml
+      - run: npm install --no-audit --no-fund
+      - run: npm run verify
+      - run: npm run smoke
+        env:
+          CHROME_BIN: google-chrome
+      - name: Commit verified visual pass
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "visual: improve framing lighting and character silhouettes"
+          git push origin HEAD:chatgpt/afterdark-county
