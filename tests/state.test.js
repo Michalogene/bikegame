@@ -16,6 +16,7 @@ test('consumables update survival and inventory', () => {
 test('damage can cause bleeding and emits death once health reaches zero', () => {
   const bus = new EventBus();
   const state = new GameState(bus);
+  state.respawn.protectedUntil = 0;
   let deaths = 0;
   bus.on('player:died', () => deaths += 1);
   state.damage(12, 'test');
