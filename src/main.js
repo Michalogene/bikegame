@@ -14,6 +14,7 @@ try {
   const app = new GameApp({ gameRoot, uiRoot });
   app.start();
   globalThis.afterdarkCounty = app;
+  import('./extensions/GameplayExpansion.js').catch((error) => console.error('[Afterdark expansion]', error));
 } catch (error) {
   if (boot) {
     boot.innerHTML = `<div class="boot-brand"><strong>AFTERDARK</strong><span>COUNTY</span></div><div class="boot-copy">Unable to initialize the county.<br>${error instanceof Error ? error.message : String(error)}</div>`;
