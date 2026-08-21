@@ -3,6 +3,7 @@
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { EventBus } from '../core/EventBus.js';
 import { GameLoop } from '../core/GameLoop.js';
+import { CharacterPresentation } from '../entities/CharacterPresentation.js';
 import { EnemySystem } from '../entities/EnemySystem.js';
 import { EffectsSystem } from '../effects/EffectsSystem.js';
 import { Player } from '../entities/Player.js';
@@ -13,11 +14,13 @@ import { InteractionSystem } from '../game/InteractionSystem.js';
 import { MissionSystem } from '../game/MissionSystem.js';
 import { TimeSystem } from '../game/TimeSystem.js';
 import { InputManager } from '../input/InputManager.js';
+import { CameraFeedback } from '../render/CameraFeedback.js';
 import { CameraRig } from '../render/CameraRig.js';
 import { RendererSystem } from '../render/Renderer.js';
 import { SaveSystem } from '../state/SaveSystem.js';
 import { Hud } from '../ui/Hud.js';
 import { MinimapRenderer } from '../ui/MinimapRenderer.js';
+import { VisualTuningSystem } from '../visual/VisualTuningSystem.js';
 import { WorldBuilder } from '../world/WorldBuilder.js';
 import { WorldPolish } from '../world/WorldPolish.js';
 
@@ -41,6 +44,8 @@ export class GameApp {
     this.combat = new CombatSystem(this.state, this.world, this.enemies, this.building);
     this.interaction = new InteractionSystem(this.state, this.world);
     this.effects = new EffectsSystem(this.state, this.world, this.player);
+    this.characters = new CharacterPresentation(this.state, this.world, this.player, this.enemies);
+    this.visualTuning = new VisualTuningSystem(this.world, this.effects, this.player);
     this.minimapRenderer = new MinimapRenderer({
       state: this.state,
       world: this.world,
@@ -49,6 +54,7 @@ export class GameApp {
       enemies: this.enemies
     });
     this.camera = new CameraRig(this.gameRoot);
+    this.cameraFeedback = new CameraFeedback(this.bus, this.camera);
     this.camera.smoothedTarget.copy(this.player.position);
     this.input = new InputManager(this.renderer.renderer.domElement);
     this.audio = new AudioSystem(this.bus);
@@ -182,11 +188,14 @@ export class GameApp {
   /** @param {number} _alpha @param {number} dt */
   render(_alpha, dt) {
     this.camera.update(this.player.position, dt);
+    this.cameraFeedback.update(dt, this.elapsed);
     const lighting = this.time.lighting;
     this.renderer.updateLighting(lighting);
     this.world.update(this.player.position, lighting.night, this.elapsed);
     this.worldPolish.update(this.player.position, lighting, this.elapsed, dt);
+    this.characters.update(dt, this.elapsed, lighting);
     this.effects.update(dt, this.aimPoint, this.elapsed, lighting);
+    this.visualTuning.update(lighting, this.elapsed);
     this.hud.update(dt);
     this.renderer.render(this.camera.camera);
     this.input.endFrame();
@@ -206,6 +215,8 @@ export class GameApp {
     this.save.save(this.state);
     for (const dispose of this.disposers) dispose();
     this.missions.dispose();
+    this.cameraFeedback.dispose();
+    this.characters.dispose();
     this.enemies.dispose();
     this.audio.dispose();
     this.hud.dispose();

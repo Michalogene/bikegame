@@ -1,0 +1,24 @@
+{
+  "state": {
+    "url": "http://127.0.0.1:8766/",
+    "title": "Afterdark County",
+    "readyState": "complete",
+    "bodyText": "SURVIVOR_1178\nLVL 7\n●\n68\nΨ\n55\n▰\n8\n⚙\n4\nDAY 3\n10:47 PM\n☾\n⌖\nMAP\n▣\nINVENTORY\n⚒\nCRAFTING\n▤\nMISSIONS\n♜\nCAMP\n⚙\nSETTINGS\nAFTERDARK\nCOUNTY\nPINE RIDGE\nN\nSAFE ZONE\n☾\nNIGHTFALL\nTemperature: 5°C\n0h 13m\nCURRENT OBJECTIVES\nSearch Pine Ridge for supplies\n0/3\nDig a trench for defensive cover\n0/4\nEstablish a safe camp\nSurvive Nightfall\n♥\n78/100\nϟ\n65/100\n●\n68/100\n1\n◉\n2\n†\n3\n◒\n2\n4\n▣\n3\n5\n✚\n2\n6\n⌐\n12\n7\n◎\n2\n8\n⌁\nHEAVY FLASHLIGHT\n▰\n25.8 / 60 KG\nE\nINTERACT\nWASD MOVE\nSHIFT SPRINT\nQ / R ROTATE\nWHEEL ZOOM\nSAVED\nNIGHTFALL\nTHE ",
+    "appReady": true,
+    "bootHidden": true,
+    "canvasReady": true,
+    "hudReady": true,
+    "bootText": "AFTERDARKCOUNTY\n      Preparing Pine Ridge...",
+    "renderCalls": 862,
+    "player": {
+      "x": -7,
+      "z": 8
+    }
+  },
+  "after": {
+    "x": -6.80027676687951,
+    "z": 7.80027676687951
+  },
+  "movement": 0.2824513049999998,
+  "pageErrors": []
+}

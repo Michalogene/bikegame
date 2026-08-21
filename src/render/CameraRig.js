@@ -7,15 +7,15 @@ export class CameraRig {
   /** @param {HTMLElement} viewport */
   constructor(viewport) {
     this.viewport = viewport;
-    this.camera = new THREE.OrthographicCamera(-20, 20, 12, -12, 0.1, 260);
+    this.camera = new THREE.OrthographicCamera(-20, 20, 12, -12, 0.1, 300);
     this.target = new THREE.Vector3();
     this.smoothedTarget = new THREE.Vector3();
     this.yaw = -Math.PI * 0.25;
     this.targetYaw = this.yaw;
-    this.zoom = 26;
-    this.targetZoom = 26;
-    this.height = 32;
-    this.framingOffset = 4.4;
+    this.zoom = 34;
+    this.targetZoom = 34;
+    this.height = 38;
+    this.framingOffset = 7.5;
     this.raycaster = new THREE.Raycaster();
     this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     this.tempPoint = new THREE.Vector3();
@@ -38,21 +38,22 @@ export class CameraRig {
   update(target, dt) {
     this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
     this.zoom = damp(this.zoom, this.targetZoom, 10, dt);
+    this.height = damp(this.height, this.targetZoom * 1.12, 8, dt);
     const forwardX = -Math.sin(this.yaw);
     const forwardZ = -Math.cos(this.yaw);
-    const framing = this.framingOffset * (this.zoom / 26);
+    const framing = this.framingOffset * (this.zoom / 34);
     this.target.set(
       target.x + forwardX * framing,
       target.y ?? 0,
       target.z + forwardZ * framing
     );
     this.smoothedTarget.x = damp(this.smoothedTarget.x, this.target.x, 7.5, dt);
-    this.smoothedTarget.y = damp(this.smoothedTarget.y, this.target.y + 1.3, 7.5, dt);
+    this.smoothedTarget.y = damp(this.smoothedTarget.y, this.target.y + 1.4, 7.5, dt);
     this.smoothedTarget.z = damp(this.smoothedTarget.z, this.target.z, 7.5, dt);
     this.resize();
 
-    const distance = this.zoom * 1.08;
-    const horizontal = distance * 0.92;
+    const distance = this.zoom * 1.02;
+    const horizontal = distance * 0.9;
     this.camera.position.set(
       this.smoothedTarget.x + Math.sin(this.yaw) * horizontal,
       this.smoothedTarget.y + this.height,
@@ -69,8 +70,7 @@ export class CameraRig {
 
   /** @param {number} delta */
   changeZoom(delta) {
-    this.targetZoom = clamp(this.targetZoom + delta * 2.5, 17, 40);
-    this.height = this.targetZoom * 1.23;
+    this.targetZoom = clamp(this.targetZoom + delta * 2.5, 22, 44);
   }
 
   /** @param {{ x: number, y: number }} pointer @param {number} height */
