@@ -26,12 +26,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Lint, typecheck, unit tests and production build
         run: npm run verify
-      - name: Chromium gameplay reliability smoke
-        run: npm run reliability
-        env:
-          CHROME_BIN: google-chrome
       - name: Package downloadable source and browser build
-        if: success()
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +37,10 @@ jobs:
             zip -qr ../reports/downloads/afterdark-county-browser-build.zip .
           )
           sha256sum reports/downloads/*.zip > reports/downloads/SHA256SUMS.txt
+      - name: Chromium gameplay reliability smoke
+        run: npm run reliability
+        env:
+          CHROME_BIN: google-chrome
       - uses: actions/upload-artifact@v4
         if: always()
         with:
