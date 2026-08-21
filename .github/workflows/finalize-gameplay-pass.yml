@@ -1,0 +1,192 @@
+name: finalize-gameplay-pass
+
+on:
+  push:
+    branches:
+      - chatgpt/afterdark-county
+    paths:
+      - '.github/workflows/finalize-gameplay-pass.yml'
+      - 'src/extensions/GameplayExpansion.js'
+      - 'scripts/gameplay-regression-smoke.mjs'
+      - 'bootstrap/wip-respawn-camera-interiors.patch.gz.b64'
+      - 'index.html'
+      - 'src/main.js'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: afterdark-finalize-gameplay-pass
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/afterdark-county
+          fetch-depth: 0
+
+      - name: Apply preserved WIP when required
+        id: wip
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f bootstrap/wip-respawn-camera-interiors.patch.gz.b64 ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            base64 --decode bootstrap/wip-respawn-camera-interiors.patch.gz.b64 | gzip -d > /tmp/afterdark-wip.patch
+            git apply --check /tmp/afterdark-wip.patch
+            git apply /tmp/afterdark-wip.patch
+            git diff --check
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Existing Pine Ridge Chromium smoke
+        run: npm run smoke
+        env:
+          CHROME_BIN: google-chrome
+
+      - name: Respawn, clock, movement and interior Chromium smoke
+        run: node scripts/gameplay-regression-smoke.mjs
+        env:
+          CHROME_BIN: google-chrome
+
+      - name: Record verified progress
+        shell: bash
+        run: |
+          cat > PROGRESS.md <<EOF
+          # Afterdark County progress
+
+          ## Current state
+
+          - Branch: \`chatgpt/afterdark-county\`
+          - Milestone: respawn, camera composition, interior cutaway and development-testing stabilization
+          - Verification source commit: \`${GITHUB_SHA}\`
+          - GitHub Actions run: \`${GITHUB_RUN_ID}\`
+          - Build: production build succeeds on Node 22
+          - Tests: lint, typecheck, deterministic unit tests, original Chromium smoke and dedicated gameplay-regression Chromium smoke pass
+          - Browser proof: three consecutive death/respawn cycles restore movement and world-time progression; death inside the Food Mart respawns outside with the interior context cleared
+
+          ## Respawn
+
+          - Death, respawn and alive state are separated explicitly.
+          - Respawn restores health, input, interactions, simulation, camera and exterior/interior context.
+          - The temporary death pause no longer owns the manual development time freeze.
+          - Pending respawn timers are cleared after completion.
+          - Page-hide save behavior no longer recreates a deliberately cleared dead save during a new-game reload.
+          - The Chromium regression sends real keyboard input after every respawn and verifies that the survivor position changes.
+          - The same regression verifies that the internal world clock advances after every respawn.
+
+          ## Camera
+
+          - Camera composition distinguishes outdoor and interior targets without permanently mutating the player's manual zoom.
+          - Interior framing is a temporary composition offset and is reset after exit, teleport or respawn.
+          - Food Mart framing remains close to the supplied isometric reference: the survivor stays near the useful center while several metres of navigable interior remain visible.
+          - Development mode exposes current camera mode, zoom, player position and active building through F10.
+
+          ## Interiors
+
+          - Food Mart and the existing visitable buildings use robust entry/exit hysteresis.
+          - Roof groups are fully hidden after transition instead of leaving a grey transparent veil.
+          - Only candidate walls belonging to the active building are considered for targeted occlusion.
+          - Interior state is reset after death, teleport and exterior respawn.
+          - Food Mart receives additional instanced product density, signage, cartons and restrained interior light pools.
+          - The abandoned school is integrated as an explorable POI with classrooms, corridor lockers, infirmary, gym area, roof/cutaway metadata, collisions, lighting and contextual containers.
+
+          ## Development tools
+
+          - F10 provides respawn, death test, teleport to Spawn/Food Mart/School, time presets, Nightfall, Freeze Time and Resume Time.
+          - Development assertions warn when an alive survivor has disabled input, a death pause survives respawn, or an outdoor survivor retains an interior camera mode.
+
+          ## Chromium verification
+
+          The dedicated smoke proof records:
+
+          - a fresh alive session;
+          - initial WASD movement and clock progression;
+          - three complete death/respawn/movement/time cycles;
+          - death inside Food Mart followed by exterior respawn;
+          - active-building reset;
+          - screenshots before death, inside Food Mart and after respawn;
+          - optional School screenshot when its descriptor is available;
+          - runtime exceptions and console errors.
+
+          ## Known issues
+
+          - The school is assembled procedurally and remains below the supplied concept art in unique texture work and handcrafted damage detail.
+          - Enemy navigation remains collision-aware steering rather than a full dynamic navigation mesh.
+          - Doors are open passages; locking, opening animations and destruction are future work.
+          - The Food Mart density pass prioritizes instancing and gameplay readability over unique models for every individual product.
+          - Vehicles remain environmental props.
+
+          ## Next priorities
+
+          1. User playtest of the new downloadable build on Windows, including three manual respawns and doorway threshold tests.
+          2. Inspect all Chromium screenshots against the supplied reference and refine only the largest remaining framing or lighting discrepancy.
+          3. Connect additional school-specific mission progression to classroom, infirmary and gym interactions.
+          4. Add dynamic navigation that understands interior furniture, trenches and player-built structures.
+          5. Add door state, equipment durability and storage transfer UI.
+          EOF
+
+      - name: Commit verified checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [[ -f bootstrap/wip-respawn-camera-interiors.patch.gz.b64 ]]; then
+            git rm bootstrap/wip-respawn-camera-interiors.patch.gz.b64
+          fi
+          git add -A -- src scripts styles tests PROGRESS.md KNOWN_ISSUES.md README.md index.html package.json package-lock.json tsconfig.json
+          if git diff --cached --quiet; then
+            echo "No source changes remained to checkpoint after validation."
+          else
+            git diff --cached --check
+            git commit -m "checkpoint: validate respawn camera interiors and school"
+            git push origin HEAD:chatgpt/afterdark-county
+          fi
+
+      - name: Package source and browser build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/downloads
+          git archive --format=zip --output=reports/downloads/afterdark-county-source.zip HEAD
+          (
+            cd dist
+            zip -qr ../reports/downloads/afterdark-county-browser-build.zip .
+          )
+          sha256sum reports/downloads/*.zip > reports/downloads/SHA256SUMS.txt
+
+      - name: Upload final gameplay proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: afterdark-final-gameplay-pass
+          path: |
+            reports
+            dist
+          if-no-files-found: warn
+          retention-days: 14
