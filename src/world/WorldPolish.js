@@ -238,6 +238,7 @@ export class WorldPolish {
       vent.add(base, cap, hood);
       vent.position.set(x, this.world.terrain.getHeight(stationCenter.x, stationCenter.z) + 6.35, z);
       this.root.add(enableShadows(vent));
+      this.world.registerRoofAttachment('food-mart', vent);
     }
 
     const rearUtility = new THREE.Group();
@@ -278,9 +279,9 @@ export class WorldPolish {
     }
 
     const houseDetails = [
-      { x: -27, z: -10, w: 13, d: 10, angle: 0 },
-      { x: 39, z: 24, w: 14, d: 10.5, angle: Math.PI },
-      { x: -38, z: 29, w: 12.5, d: 9.5, angle: Math.PI }
+      { id: 'west-home', x: -27, z: -10, w: 13, d: 10, angle: 0 },
+      { id: 'ridge-home', x: 39, z: 24, w: 14, d: 10.5, angle: Math.PI },
+      { id: 'north-home', x: -38, z: 29, w: 12.5, d: 9.5, angle: Math.PI }
     ];
     for (const house of houseDetails) {
       const group = new THREE.Group();
@@ -296,6 +297,7 @@ export class WorldPolish {
       group.position.set(house.x, this.world.terrain.getHeight(house.x, house.z), house.z);
       group.rotation.y = house.angle;
       this.root.add(enableShadows(group));
+      this.world.registerRoofAttachment(house.id, group);
     }
   }
 

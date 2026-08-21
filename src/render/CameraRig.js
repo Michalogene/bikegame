@@ -15,6 +15,10 @@ export class CameraRig {
     this.zoom = 32.5;
     this.targetZoom = 32.5;
     this.height = 37;
+    this.interiorBlend = 0;
+    this.targetInteriorBlend = 0;
+    this.interiorZoomScale = 0.84;
+    this.activeInteriorId = null;
     this.framingOffset = 12;
     this.lateralFraming = 3.2;
     this.raycaster = new THREE.Raycaster();
@@ -38,14 +42,16 @@ export class CameraRig {
   /** @param {{ x: number, y?: number, z: number }} target @param {number} dt */
   update(target, dt) {
     this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
-    this.zoom = damp(this.zoom, this.targetZoom, 10, dt);
-    this.height = damp(this.height, this.targetZoom * 1.14, 8, dt);
+    this.interiorBlend = damp(this.interiorBlend, this.targetInteriorBlend, 9, dt);
+    const effectiveZoomTarget = this.targetZoom * (1 - (1 - this.interiorZoomScale) * this.interiorBlend);
+    this.zoom = damp(this.zoom, effectiveZoomTarget, 10, dt);
+    this.height = damp(this.height, effectiveZoomTarget * 1.14, 8, dt);
     const forwardX = -Math.sin(this.yaw);
     const forwardZ = -Math.cos(this.yaw);
     const rightX = Math.cos(this.yaw);
     const rightZ = -Math.sin(this.yaw);
-    const framing = this.framingOffset * (this.zoom / 32.5);
-    const lateral = this.lateralFraming * (this.zoom / 32.5);
+    const framing = this.framingOffset * (this.zoom / 32.5) * (1 - this.interiorBlend * 0.34);
+    const lateral = this.lateralFraming * (this.zoom / 32.5) * (1 - this.interiorBlend * 0.42);
     this.target.set(
       target.x + forwardX * framing + rightX * lateral,
       target.y ?? 0,
@@ -75,6 +81,13 @@ export class CameraRig {
   /** @param {number} delta */
   changeZoom(delta) {
     this.targetZoom = clamp(this.targetZoom + delta * 2.5, 23, 42);
+  }
+
+  /** @param {boolean} active @param {number} [scale] @param {string | null} [buildingId] */
+  setInteriorMode(active, scale = 0.84, buildingId = null) {
+    this.interiorZoomScale = clamp(scale, 0.76, 0.94);
+    this.targetInteriorBlend = active ? 1 : 0;
+    this.activeInteriorId = active ? buildingId : null;
   }
 
   /** @param {{ x: number, y: number }} pointer @param {number} height */

@@ -21,6 +21,7 @@ import { SaveSystem } from '../state/SaveSystem.js';
 import { Hud } from '../ui/Hud.js';
 import { MinimapRenderer } from '../ui/MinimapRenderer.js';
 import { VisualTuningSystem } from '../visual/VisualTuningSystem.js';
+import { InteriorSystem } from '../world/InteriorSystem.js';
 import { WorldBuilder } from '../world/WorldBuilder.js';
 import { WorldPolish } from '../world/WorldPolish.js';
 
@@ -54,6 +55,7 @@ export class GameApp {
       enemies: this.enemies
     });
     this.camera = new CameraRig(this.gameRoot);
+    this.interiors = new InteriorSystem(this.world, this.player, this.camera);
     this.cameraFeedback = new CameraFeedback(this.bus, this.camera);
     this.camera.smoothedTarget.copy(this.player.position);
     this.input = new InputManager(this.renderer.renderer.domElement);
@@ -187,6 +189,7 @@ export class GameApp {
 
   /** @param {number} _alpha @param {number} dt */
   render(_alpha, dt) {
+    this.interiors.update(dt);
     this.camera.update(this.player.position, dt);
     this.cameraFeedback.update(dt, this.elapsed);
     const lighting = this.time.lighting;
@@ -221,6 +224,7 @@ export class GameApp {
     this.audio.dispose();
     this.hud.dispose();
     this.input.dispose();
+    this.interiors.dispose();
     this.camera.dispose();
     this.visualTuning.dispose();
     this.effects.dispose();

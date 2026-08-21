@@ -2,7 +2,7 @@
 
 import * as THREE from '../core/three.js';
 import { Random } from '../core/Random.js';
-import { distance2D } from '../core/math.js';
+import { distance2D, rotate2D } from '../core/math.js';
 import { LOOT_TABLES } from '../data/items.js';
 import { ColliderMap } from './ColliderMap.js';
 import { EditableTerrain } from './EditableTerrain.js';
@@ -32,8 +32,17 @@ export class WorldBuilder {
     this.interactables = [];
     /** @type {{ id: string, name: string, x: number, z: number, glyph: string }[]} */
     this.poi = [];
-    /** @type {{ roof: any, material: any, x: number, z: number, width: number, depth: number, angle: number }[]} */
-    this.roofs = [];
+    /** @type {Map<string, any>} */
+    this.buildings = new Map();
+    this.spawnPoints = [
+      { id: 'pine-ridge-crossroad', label: 'Pine Ridge crossroad', x: -3.2, z: 8.0, rotation: Math.PI * 0.25, initial: true },
+      { id: 'south-road', label: 'South county road', x: 1.8, z: -55.0, rotation: 0 },
+      { id: 'farm-lane', label: 'Farm access lane', x: -42.0, z: 18.5, rotation: Math.PI * 0.5 },
+      { id: 'east-treeline', label: 'East treeline', x: 56.0, z: -17.0, rotation: -Math.PI * 0.5 },
+      { id: 'north-road', label: 'North county road', x: 3.4, z: 58.0, rotation: Math.PI },
+      { id: 'west-woods', label: 'West woods trail', x: -58.0, z: -32.0, rotation: Math.PI * 0.5 }
+    ];
+    this.initialSpawnId = 'pine-ridge-crossroad';
     /** @type {any[]} */
     this.warmLights = [];
     this.foliageRoot = new THREE.Group();
@@ -95,23 +104,22 @@ export class WorldBuilder {
 
   buildPineRidge() {
     const station = createGasStation(this.materials);
-    station.group.position.set(19, this.terrain.getHeight(19, -5), -5);
+    const stationMeta = {
+      id: 'food-mart', label: 'Pine Ridge Food Mart',
+      x: 19, z: -5, angle: 0, width: station.bounds.width, depth: station.bounds.depth,
+      interiorZoom: 0.84
+    };
+    station.group.position.set(stationMeta.x, this.terrain.getHeight(stationMeta.x, stationMeta.z), stationMeta.z);
     this.root.add(station.group);
-    this.warmLights.push(...station.warmLights);
-    this.roofs.push({ roof: station.roof, material: station.roofMaterial, x: 19, z: -5, width: 25, depth: 15, angle: 0 });
+    this.registerBuilding(stationMeta, station);
     this.poi.push({ id: 'pine-ridge', name: 'PINE RIDGE', x: 14, z: 0, glyph: '◆' });
 
-    this.collider.addRect('station-back', 19, -12.35, 25, 0.8);
-    this.collider.addRect('station-left', 6.6, -5, 0.8, 15);
-    this.collider.addRect('station-right', 31.4, -5, 0.8, 15);
-    this.collider.addRect('station-counter', 26.5, -9.7, 8.8, 1.8);
-    this.collider.addRect('station-fridge', 10.2, -11.7, 4.9, 1.5);
+    for (const spot of station.lootSpots) {
+      this.addContainerLocal(stationMeta, `station-${spot.id}`, spot.label, spot.x, spot.z, spot.table, createCrate(this.materials));
+    }
+
     this.collider.addRect('station-pump-a', 14.5, 7.6, 2.0, 1.7);
     this.collider.addRect('station-pump-b', 20.4, 7.6, 2.0, 1.7);
-
-    this.addContainer('station-shelves', 'Food mart shelves', 14.2, -6.2, 'gas_station', createCrate(this.materials));
-    this.addContainer('station-counter-cache', 'Locked counter cache', 26.0, -8.0, 'gas_station', createCrate(this.materials));
-    this.addContainer('station-fridge-cache', 'Cold storage', 10.8, -10.0, 'gas_station', createCrate(this.materials));
 
     const priceSign = this.createPriceSign();
     priceSign.position.set(5.1, this.terrain.getHeight(5.1, 0.8), 0.8);
@@ -168,24 +176,27 @@ export class WorldBuilder {
 
   buildResidentialArea() {
     const homes = [
-      { id: 'west-home', x: -27, z: -10, angle: 0, width: 13, depth: 10 },
-      { id: 'ridge-home', x: 39, z: 24, angle: Math.PI, width: 14, depth: 10.5 },
-      { id: 'north-home', x: -38, z: 29, angle: Math.PI, width: 12.5, depth: 9.5 }
+      { id: 'west-home', label: 'West Pine Residence', x: -27, z: -10, angle: 0, width: 13, depth: 10 },
+      { id: 'ridge-home', label: 'Ridge Family Home', x: 39, z: 24, angle: Math.PI, width: 14, depth: 10.5 },
+      { id: 'north-home', label: 'North Pine Cabin', x: -38, z: 29, angle: Math.PI, width: 12.5, depth: 9.5 }
     ];
     for (const [index, home] of homes.entries()) {
-      const house = createHouse(this.materials, { width: home.width, depth: home.depth, color: index === 0 ? this.materials.darkWall : this.materials.wall });
-      const y = this.terrain.getHeight(home.x, home.z);
-      house.group.position.set(home.x, y, home.z);
+      const house = createHouse(this.materials, {
+        width: home.width,
+        depth: home.depth,
+        color: index === 0 ? this.materials.darkWall : this.materials.wall
+      });
+      house.group.position.set(home.x, this.terrain.getHeight(home.x, home.z), home.z);
       house.group.rotation.y = home.angle;
       this.root.add(house.group);
-      this.roofs.push({ roof: house.roof, material: house.roofMaterial, x: home.x, z: home.z, width: home.width, depth: home.depth, angle: home.angle });
-      this.collider.addRect(home.id, home.x, home.z, home.width + 0.4, home.depth + 0.4, home.angle);
-      const lootPosition = index === 0 ? { x: -21.6, z: -4.2 } : index === 1 ? { x: 33, z: 18.2 } : { x: -32.5, z: 23.5 };
-      this.addContainer(`${home.id}-porch`, 'Abandoned home supplies', lootPosition.x, lootPosition.z, 'house', createCrate(this.materials));
+      this.registerBuilding({ ...home, interiorZoom: 0.82 }, house);
+      for (const spot of house.lootSpots) {
+        this.addContainerLocal(home, `${home.id}-${spot.id}`, spot.label, spot.x, spot.z, spot.table, createCrate(this.materials));
+      }
     }
 
-    this.addFencedYard(-27, -9.5, 25, 23, 'west-yard');
-    this.addFencedYard(39, 24, 26, 22, 'east-yard');
+    this.addFencedYard(-27, -9.5, 25, 23, 'west-yard', 0);
+    this.addFencedYard(39, 24, 26, 22, 'east-yard', Math.PI);
 
     const mailbox = (x, z, angle = 0) => {
       const group = new THREE.Group();
@@ -202,9 +213,11 @@ export class WorldBuilder {
     mailbox(31, 13.8, Math.PI);
   }
 
-  addFencedYard(x, z, width, depth, id) {
+  addFencedYard(x, z, width, depth, id, frontAngle = 0) {
+    const frontZSign = Math.cos(frontAngle) >= 0 ? 1 : -1;
+    const backZ = z - frontZSign * depth * 0.5;
     const segments = [
-      { x, z: z - depth * 0.5, length: width, angle: 0 },
+      { x, z: backZ, length: width, angle: 0 },
       { x: x - width * 0.5, z, length: depth, angle: Math.PI * 0.5 },
       { x: x + width * 0.5, z, length: depth, angle: Math.PI * 0.5 }
     ];
@@ -213,20 +226,24 @@ export class WorldBuilder {
       fence.position.set(segment.x, this.terrain.getHeight(segment.x, segment.z), segment.z);
       fence.rotation.y = segment.angle;
       this.root.add(fence);
-      this.collider.addRect(`${id}-${index}`, segment.x, segment.z, segment.angle ? 0.45 : segment.length, segment.angle ? segment.length : 0.45, segment.angle);
+      this.collider.addRect(`${id}-${index}`, segment.x, segment.z, segment.length, 0.45, segment.angle);
     }
   }
 
   buildFarmAndBarn() {
     const barn = createBarn(this.materials);
-    barn.group.position.set(-24, this.terrain.getHeight(-24, 39), 39);
-    barn.group.rotation.y = Math.PI;
+    const barnMeta = {
+      id: 'old-barn', label: 'Old Pine Barn',
+      x: -24, z: 39, angle: Math.PI, width: barn.bounds.width, depth: barn.bounds.depth,
+      interiorZoom: 0.86
+    };
+    barn.group.position.set(barnMeta.x, this.terrain.getHeight(barnMeta.x, barnMeta.z), barnMeta.z);
+    barn.group.rotation.y = barnMeta.angle;
     this.root.add(barn.group);
-    this.roofs.push({ roof: barn.roof, material: barn.roofMaterial, x: -24, z: 39, width: 17, depth: 15, angle: Math.PI });
-    this.collider.addRect('barn-back', -24, 46.3, 17, 0.8);
-    this.collider.addRect('barn-left', -32.3, 39, 0.8, 15);
-    this.collider.addRect('barn-right', -15.7, 39, 0.8, 15);
-    this.addContainer('barn-workbench', 'Barn workshop', -24, 34, 'workshop', createCrate(this.materials));
+    this.registerBuilding(barnMeta, barn);
+    for (const spot of barn.lootSpots) {
+      this.addContainerLocal(barnMeta, `barn-${spot.id}`, spot.label, spot.x, spot.z, spot.table, createCrate(this.materials));
+    }
     this.poi.push({ id: 'old-barn', name: 'OLD BARN', x: -24, z: 39, glyph: '▰' });
 
     const fieldMaterial = new THREE.MeshStandardMaterial({ color: 0x4d4a2e, roughness: 1 });
@@ -426,10 +443,106 @@ export class WorldBuilder {
     }
   }
 
-  /** @param {string} id @param {string} label @param {number} x @param {number} z @param {keyof typeof LOOT_TABLES} tableName @param {any} mesh */
-  addContainer(id, label, x, z, tableName, mesh) {
+  /** @param {any} metadata @param {any} factory */
+  registerBuilding(metadata, factory) {
+    const building = {
+      ...metadata,
+      roof: factory.roof,
+      entrances: factory.entrances ?? [],
+      roofFadeTargets: this.prepareFadeObject(factory.roof),
+      wallFadeSides: (factory.cutaway ?? []).map((side) => ({
+        normal: side.normal,
+        targets: this.prepareFadeObject(side.object)
+      }))
+    };
+    factory.group.userData.buildingId = building.id;
+    this.buildings.set(building.id, building);
+    this.warmLights.push(...(factory.warmLights ?? []));
+    for (const collider of factory.colliders ?? []) this.addLocalCollider(building, collider);
+    return building;
+  }
+
+  /** @param {any} object */
+  prepareFadeObject(object) {
+    const targets = [];
+    if (!object) return targets;
+    object.traverse((child) => {
+      if (!child.isMesh || !child.material) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      const cloned = materials.map((material) => {
+        const next = material.clone();
+        next.transparent = true;
+        return next;
+      });
+      child.material = Array.isArray(child.material) ? cloned : cloned[0];
+      for (const material of cloned) {
+        targets.push({
+          material,
+          mesh: child,
+          baseOpacity: Number.isFinite(material.opacity) ? material.opacity : 1,
+          baseDepthWrite: material.depthWrite !== false,
+          baseCastShadow: child.castShadow !== false
+        });
+      }
+    });
+    return targets;
+  }
+
+  /** @param {string} buildingId @param {any} object */
+  registerRoofAttachment(buildingId, object) {
+    const building = this.buildings.get(buildingId);
+    if (!building || !object) return false;
+    building.roofFadeTargets.push(...this.prepareFadeObject(object));
+    object.userData.buildingId = buildingId;
+    object.userData.roofAttachment = true;
+    return true;
+  }
+
+  /** @param {{ x: number, z: number, angle?: number }} building @param {number} localX @param {number} localZ */
+  localToWorld(building, localX, localZ) {
+    const rotated = rotate2D(localX, localZ, building.angle ?? 0);
+    return { x: building.x + rotated.x, z: building.z + rotated.z };
+  }
+
+  /** @param {any} building @param {any} collider */
+  addLocalCollider(building, collider) {
+    const position = this.localToWorld(building, collider.x, collider.z);
+    this.collider.addRect(
+      `building-${building.id}-${collider.id}`,
+      position.x,
+      position.z,
+      collider.width,
+      collider.depth,
+      (building.angle ?? 0) + (collider.angle ?? 0)
+    );
+  }
+
+  /** @param {any} building @param {string} id @param {string} label @param {number} localX @param {number} localZ @param {keyof typeof LOOT_TABLES} tableName @param {any} mesh */
+  addContainerLocal(building, id, label, localX, localZ, tableName, mesh) {
+    const position = this.localToWorld(building, localX, localZ);
+    const angle = (building.angle ?? 0) + this.random.range(-0.18, 0.18);
+    return this.addContainer(id, label, position.x, position.z, tableName, mesh, angle);
+  }
+
+  /** @param {number} x @param {number} z @param {number} [padding] */
+  getBuildingAt(x, z, padding = 0) {
+    for (const building of this.buildings.values()) {
+      const local = rotate2D(x - building.x, z - building.z, -(building.angle ?? 0));
+      if (Math.abs(local.x) <= building.width * 0.5 + padding
+        && Math.abs(local.z) <= building.depth * 0.5 + padding) return building;
+    }
+    return null;
+  }
+
+  /** @param {number} x @param {number} z @param {number} [padding] */
+  isInsideBuilding(x, z, padding = 0) {
+    return Boolean(this.getBuildingAt(x, z, padding));
+  }
+
+  /** @param {string} id @param {string} label @param {number} x @param {number} z @param {keyof typeof LOOT_TABLES} tableName @param {any} mesh @param {number | null} [angle] */
+  addContainer(id, label, x, z, tableName, mesh, angle = null) {
     mesh.position.set(x, this.terrain.getHeight(x, z), z);
-    mesh.rotation.y = this.random.range(-0.2, 0.2);
+    mesh.rotation.y = angle ?? this.random.range(-0.2, 0.2);
     this.root.add(mesh);
     const items = this.generateLoot(tableName);
     const container = { id, label, x, z, radius: 2.8, type: 'container', items, opened: this.state.openedContainers.has(id), mesh };
@@ -486,12 +599,5 @@ export class WorldBuilder {
       light.intensity = light.userData.baseIntensity * (0.22 + nightStrength * 0.95);
     }
     this.foliageRoot.rotation.z = Math.sin(elapsed * 0.17) * 0.0015;
-    for (const roof of this.roofs) {
-      const dx = player.x - roof.x;
-      const dz = player.z - roof.z;
-      const inside = Math.abs(dx) < roof.width * 0.48 && Math.abs(dz) < roof.depth * 0.48;
-      roof.material.opacity += ((inside ? 0.08 : 1) - roof.material.opacity) * 0.12;
-      roof.material.depthWrite = roof.material.opacity > 0.5;
-    }
   }
 }

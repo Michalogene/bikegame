@@ -69,30 +69,74 @@ export function createHouse(materials, options = {}) {
   const depth = options.depth ?? 10;
   const group = new THREE.Group();
   group.name = 'Abandoned residence';
+  const cutaway = [];
+  const colliders = [];
+  const warmLights = [];
+
   const foundation = box(width + 0.7, 0.55, depth + 0.7, materials.rock);
   foundation.position.y = 0.2;
-  group.add(foundation);
-
-  const wallMaterial = options.color ?? materials.darkWall;
   const floor = box(width, 0.3, depth, materials.darkWood);
   floor.position.y = 0.62;
-  group.add(floor);
+  group.add(foundation, floor);
+
+  const wallMaterial = options.color ?? materials.darkWall;
+  const doorWidth = 2.5;
+  const frontSegmentWidth = (width - doorWidth) * 0.5;
+
+  const backGroup = new THREE.Group();
   const back = box(width, 3.8, 0.32, wallMaterial);
   back.position.set(0, 2.5, -depth * 0.5);
+  backGroup.add(back);
+  group.add(backGroup);
+  cutaway.push({ object: backGroup, normal: { x: 0, z: -1 } });
+  colliders.push({ id: 'back', x: 0, z: -depth * 0.5, width, depth: 0.42 });
+
+  const leftGroup = new THREE.Group();
   const left = box(0.32, 3.8, depth, wallMaterial);
   left.position.set(-width * 0.5, 2.5, 0);
+  const leftWindow = createWindow(materials, 1.8, 1.45);
+  leftWindow.rotation.y = -Math.PI * 0.5;
+  leftWindow.position.set(-width * 0.5 - 0.19, 2.65, 1.65);
+  leftGroup.add(left, leftWindow);
+  group.add(leftGroup);
+  cutaway.push({ object: leftGroup, normal: { x: -1, z: 0 } });
+  colliders.push({ id: 'left', x: -width * 0.5, z: 0, width: 0.42, depth });
+
+  const rightGroup = new THREE.Group();
   const right = box(0.32, 3.8, depth, wallMaterial);
   right.position.set(width * 0.5, 2.5, 0);
-  const frontLeft = box(width * 0.35, 3.8, 0.32, wallMaterial);
-  frontLeft.position.set(-width * 0.325, 2.5, depth * 0.5);
-  const frontRight = box(width * 0.35, 3.8, 0.32, wallMaterial);
-  frontRight.position.set(width * 0.325, 2.5, depth * 0.5);
-  group.add(back, left, right, frontLeft, frontRight);
+  const rightWindow = createWindow(materials, 1.8, 1.45);
+  rightWindow.rotation.y = Math.PI * 0.5;
+  rightWindow.position.set(width * 0.5 + 0.19, 2.65, -1.7);
+  rightGroup.add(right, rightWindow);
+  group.add(rightGroup);
+  cutaway.push({ object: rightGroup, normal: { x: 1, z: 0 } });
+  colliders.push({ id: 'right', x: width * 0.5, z: 0, width: 0.42, depth });
 
+  const frontGroup = new THREE.Group();
+  for (const side of [-1, 1]) {
+    const segment = box(frontSegmentWidth, 3.8, 0.32, wallMaterial);
+    segment.position.set(side * (doorWidth * 0.5 + frontSegmentWidth * 0.5), 2.5, depth * 0.5);
+    frontGroup.add(segment);
+    colliders.push({
+      id: side < 0 ? 'front-left' : 'front-right',
+      x: segment.position.x,
+      z: depth * 0.5,
+      width: frontSegmentWidth,
+      depth: 0.42
+    });
+  }
+  for (const x of [-width * 0.3, width * 0.3]) {
+    const window = createWindow(materials, 1.7, 1.4);
+    window.position.set(x, 2.7, depth * 0.5 + 0.19);
+    frontGroup.add(window);
+  }
   const door = box(1.45, 2.8, 0.18, materials.darkWood);
-  door.position.set(0, 2.15, depth * 0.5 + 0.08);
-  door.rotation.y = -0.6;
-  group.add(door);
+  door.position.set(-doorWidth * 0.45, 2.15, depth * 0.5 + 0.15);
+  door.rotation.y = -1.08;
+  frontGroup.add(door);
+  group.add(frontGroup);
+  cutaway.push({ object: frontGroup, normal: { x: 0, z: 1 } });
 
   const porch = box(width * 0.72, 0.32, 2.4, materials.wood);
   porch.position.set(0, 0.74, depth * 0.5 + 1.1);
@@ -101,47 +145,108 @@ export function createHouse(materials, options = {}) {
     const post = box(0.18, 3, 0.18, materials.darkWood);
     post.position.set(x, 2.25, depth * 0.5 + 1.85);
     group.add(post);
+    colliders.push({ id: `porch-post-${x < 0 ? 'left' : 'right'}`, x, z: depth * 0.5 + 1.85, width: 0.3, depth: 0.3 });
   }
-  for (const x of [-width * 0.29, width * 0.29]) {
-    const window = createWindow(materials, 1.7, 1.4);
-    window.position.set(x, 2.7, depth * 0.5 + 0.19);
-    group.add(window);
-  }
-  const sideWindow = createWindow(materials, 1.8, 1.45);
-  sideWindow.rotation.y = Math.PI * 0.5;
-  sideWindow.position.set(width * 0.5 + 0.19, 2.65, -1.7);
-  group.add(sideWindow);
 
   const roofMaterial = materials.roof.clone();
   roofMaterial.transparent = true;
   const roof = new THREE.Group();
+  roof.name = 'Residence roof';
   const slabA = box(width * 0.62, 0.32, depth + 1.3, roofMaterial);
   slabA.rotation.z = -0.57;
   slabA.position.set(-width * 0.23, 5.9, 0);
   const slabB = box(width * 0.62, 0.32, depth + 1.3, roofMaterial);
   slabB.rotation.z = 0.57;
   slabB.position.set(width * 0.23, 5.9, 0);
-  roof.add(slabA, slabB);
-  group.add(roof);
-
   const chimney = box(0.85, 2.7, 0.85, materials.rust);
   chimney.position.set(-width * 0.28, 6.2, -depth * 0.18);
-  group.add(chimney);
+  roof.add(slabA, slabB, chimney);
+  group.add(roof);
 
-  const interiorTable = box(3.2, 0.22, 1.4, materials.wood);
-  interiorTable.position.set(-2, 1.65, -1.8);
+  const interiorWall = materials.wall.clone();
+  interiorWall.color.offsetHSL(0, -0.08, -0.18);
+  const partitionZ = -0.45;
+  const partitionDoorX = 1.45;
+  const partitionDoorWidth = 1.75;
+  const leftPartitionWidth = partitionDoorX - partitionDoorWidth * 0.5 + width * 0.5;
+  const rightPartitionWidth = width * 0.5 - (partitionDoorX + partitionDoorWidth * 0.5);
+  if (leftPartitionWidth > 0.5) {
+    const partition = box(leftPartitionWidth, 3.15, 0.22, interiorWall);
+    partition.position.set(-width * 0.5 + leftPartitionWidth * 0.5, 2.15, partitionZ);
+    group.add(partition);
+    colliders.push({ id: 'partition-left', x: partition.position.x, z: partitionZ, width: leftPartitionWidth, depth: 0.3 });
+  }
+  if (rightPartitionWidth > 0.5) {
+    const partition = box(rightPartitionWidth, 3.15, 0.22, interiorWall);
+    partition.position.set(partitionDoorX + partitionDoorWidth * 0.5 + rightPartitionWidth * 0.5, 2.15, partitionZ);
+    group.add(partition);
+    colliders.push({ id: 'partition-right', x: partition.position.x, z: partitionZ, width: rightPartitionWidth, depth: 0.3 });
+  }
+
+  const rugMaterial = new THREE.MeshStandardMaterial({ color: 0x51443a, roughness: 1, side: THREE.DoubleSide });
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(4.1, 3.0), rugMaterial);
+  rug.rotation.x = -Math.PI * 0.5;
+  rug.position.set(-1.65, 0.79, 2.0);
+  group.add(rug);
+
+  const interiorTable = box(2.8, 0.22, 1.25, materials.wood);
+  interiorTable.position.set(-2.0, 1.65, 1.6);
   group.add(interiorTable);
-  for (const x of [-3.2, -0.8]) {
+  for (const x of [-3.05, -0.95]) {
     const leg = box(0.16, 1.15, 0.16, materials.darkWood);
-    leg.position.set(x, 1.08, -1.8);
+    leg.position.set(x, 1.08, 1.6);
     group.add(leg);
   }
-  const cabinet = box(2.4, 2.4, 0.8, materials.darkWood);
-  cabinet.position.set(width * 0.5 - 1.3, 1.9, -depth * 0.5 + 0.55);
+  colliders.push({ id: 'table', x: -2.0, z: 1.6, width: 2.9, depth: 1.35 });
+
+  const sofa = box(2.7, 1.05, 1.05, materials.darkWall);
+  sofa.position.set(width * 0.5 - 1.75, 1.28, 2.15);
+  group.add(sofa);
+  colliders.push({ id: 'sofa', x: width * 0.5 - 1.75, z: 2.15, width: 2.8, depth: 1.15 });
+
+  const bed = new THREE.Group();
+  const frame = box(3.25, 0.42, 1.8, materials.darkWood);
+  frame.position.y = 0.95;
+  const mattress = box(3.05, 0.38, 1.62, materials.whitePaint);
+  mattress.position.y = 1.32;
+  bed.add(frame, mattress);
+  bed.position.set(-2.25, 0, -depth * 0.5 + 1.45);
+  group.add(bed);
+  colliders.push({ id: 'bed', x: -2.25, z: -depth * 0.5 + 1.45, width: 3.35, depth: 1.9 });
+
+  const cabinet = box(2.2, 2.3, 0.8, materials.darkWood);
+  cabinet.position.set(width * 0.5 - 1.25, 1.9, -depth * 0.5 + 0.58);
   group.add(cabinet);
+  colliders.push({ id: 'cabinet', x: cabinet.position.x, z: cabinet.position.z, width: 2.3, depth: 0.9 });
+
+  const lightPositions = [[-2.1, 3.25, 2.0], [2.0, 3.2, -2.2]];
+  for (const position of lightPositions) {
+    const light = new THREE.PointLight(0xffbc78, 4.4, 10, 2.0);
+    light.position.set(position[0], position[1], position[2]);
+    light.userData.baseIntensity = light.intensity;
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.42, 12, 1, true), materials.windowGlow);
+    shade.position.copy(light.position);
+    shade.position.y += 0.16;
+    shade.rotation.x = Math.PI;
+    group.add(light, shade);
+    warmLights.push(light);
+  }
 
   enableShadows(group);
-  return { group, roof, roofMaterial, bounds: { width, depth } };
+  return {
+    group,
+    roof,
+    roofMaterial,
+    cutaway,
+    colliders,
+    warmLights,
+    entrances: [{ x: 0, z: depth * 0.5 + 0.1, width: doorWidth }],
+    lootSpots: [
+      { id: 'kitchen', label: 'Kitchen cupboard', x: width * 0.5 - 2.2, z: 0.65, table: 'house' },
+      { id: 'bedroom', label: 'Bedroom supplies', x: 2.65, z: -depth * 0.5 + 1.65, table: 'house' }
+    ],
+    bounds: { width, depth }
+  };
 }
 
 /** @param {import('./Materials.js').MaterialLibrary} materials */
@@ -150,37 +255,68 @@ export function createGasStation(materials) {
   group.name = 'Pine Ridge Food Mart';
   const width = 25;
   const depth = 15;
+  const cutaway = [];
+  const colliders = [];
+  const warmLights = [];
+
   const base = box(width + 1, 0.45, depth + 1, materials.rock);
   base.position.y = 0.2;
-  group.add(base);
   const floor = box(width, 0.28, depth, materials.asphalt);
   floor.position.y = 0.55;
-  group.add(floor);
+  group.add(base, floor);
 
+  const backGroup = new THREE.Group();
   const back = box(width, 4.8, 0.35, materials.wall);
   back.position.set(0, 3, -depth * 0.5);
+  backGroup.add(back);
+  group.add(backGroup);
+  cutaway.push({ object: backGroup, normal: { x: 0, z: -1 } });
+  colliders.push({ id: 'back', x: 0, z: -depth * 0.5, width, depth: 0.52 });
+
+  const leftGroup = new THREE.Group();
   const left = box(0.35, 4.8, depth, materials.wall);
   left.position.set(-width * 0.5, 3, 0);
+  leftGroup.add(left);
+  group.add(leftGroup);
+  cutaway.push({ object: leftGroup, normal: { x: -1, z: 0 } });
+  colliders.push({ id: 'left', x: -width * 0.5, z: 0, width: 0.52, depth });
+
+  const rightGroup = new THREE.Group();
   const right = box(0.35, 4.8, depth, materials.wall);
   right.position.set(width * 0.5, 3, 0);
+  rightGroup.add(right);
+  group.add(rightGroup);
+  cutaway.push({ object: rightGroup, normal: { x: 1, z: 0 } });
+  colliders.push({ id: 'right', x: width * 0.5, z: 0, width: 0.52, depth });
+
+  const frontGroup = new THREE.Group();
   const frontLintel = box(width, 1.25, 0.35, materials.darkWall);
   frontLintel.position.set(0, 4.75, depth * 0.5);
-  group.add(back, left, right, frontLintel);
+  frontGroup.add(frontLintel);
+  const doorCenter = 6.0;
+  const doorWidth = 3.2;
+  const leftFrontWidth = doorCenter - doorWidth * 0.5 + width * 0.5;
+  const rightFrontWidth = width * 0.5 - (doorCenter + doorWidth * 0.5);
+  colliders.push({ id: 'front-left', x: -width * 0.5 + leftFrontWidth * 0.5, z: depth * 0.5, width: leftFrontWidth, depth: 0.48 });
+  colliders.push({ id: 'front-right', x: doorCenter + doorWidth * 0.5 + rightFrontWidth * 0.5, z: depth * 0.5, width: rightFrontWidth, depth: 0.48 });
 
-  const trimRed = box(width + 0.45, 0.52, depth + 0.45, materials.redPaint);
-  trimRed.position.y = 5.35;
-  group.add(trimRed);
-  const trimDark = box(width + 0.6, 0.32, depth + 0.6, materials.black);
-  trimDark.position.y = 5.72;
-  group.add(trimDark);
+  const windowCenters = [-10.2, -6.3, -2.4, 1.5, 10.0];
+  for (const center of windowCenters) {
+    const glass = box(3.25, 3.2, 0.1, materials.glass);
+    glass.position.set(center, 2.55, depth * 0.5 + 0.12);
+    const frameLeft = box(0.12, 3.5, 0.18, materials.metal);
+    frameLeft.position.set(center - 1.68, 2.55, depth * 0.5 + 0.2);
+    const frameRight = box(0.12, 3.5, 0.18, materials.metal);
+    frameRight.position.set(center + 1.68, 2.55, depth * 0.5 + 0.2);
+    frontGroup.add(glass, frameLeft, frameRight);
+  }
 
-  for (let index = 0; index < 6; index += 1) {
-    const glass = box(3.25, 3.2, 0.1, index === 4 ? materials.darkWood : materials.glass);
-    glass.position.set(-9.7 + index * 3.9, 2.55, depth * 0.5 + 0.12);
-    group.add(glass);
-    const frame = box(0.12, 3.5, 0.18, materials.metal);
-    frame.position.set(-11.65 + index * 3.9, 2.55, depth * 0.5 + 0.2);
-    group.add(frame);
+  for (const offset of [-0.98, 0.98]) {
+    const slidingDoor = box(1.35, 3.2, 0.1, materials.glass);
+    slidingDoor.position.set(doorCenter + offset * 1.1, 2.55, depth * 0.5 + 0.12);
+    const handle = box(0.08, 0.78, 0.12, materials.metal);
+    handle.position.set(doorCenter + offset * 0.42, 2.55, depth * 0.5 + 0.25);
+    frontGroup.add(slidingDoor, handle);
   }
 
   const signTexture = createSignTexture(['PINE RIDGE', 'FOOD MART'], {
@@ -189,39 +325,61 @@ export function createGasStation(materials) {
   const signMaterial = new THREE.MeshStandardMaterial({ map: signTexture, emissiveMap: signTexture, emissive: 0x5a1c13, emissiveIntensity: 0.72, roughness: 0.75 });
   const frontSign = box(10.5, 1.65, 0.18, signMaterial);
   frontSign.position.set(0, 5.35, depth * 0.5 + 0.45);
-  group.add(frontSign);
+  frontGroup.add(frontSign);
+  group.add(frontGroup);
+  cutaway.push({ object: frontGroup, normal: { x: 0, z: 1 } });
 
   const roofMaterial = materials.roof.clone();
   roofMaterial.color.set(0x343d46);
   roofMaterial.transparent = true;
-  const roof = box(width + 1.4, 0.62, depth + 1.4, roofMaterial);
-  roof.position.y = 6.05;
+  const roof = new THREE.Group();
+  roof.name = 'Food Mart roof';
+  const roofSlab = box(width + 1.4, 0.62, depth + 1.4, roofMaterial);
+  roofSlab.position.y = 6.05;
+  const trimRed = box(width + 0.45, 0.52, depth + 0.45, materials.redPaint);
+  trimRed.position.y = 5.35;
+  const trimDark = box(width + 0.6, 0.32, depth + 0.6, materials.black);
+  trimDark.position.y = 5.72;
+  roof.add(trimRed, trimDark, roofSlab);
   group.add(roof);
 
-  for (let shelfIndex = 0; shelfIndex < 3; shelfIndex += 1) {
-    const shelf = box(7.5, 1.6, 1.15, materials.darkWood);
-    shelf.position.set(-5 + shelfIndex * 5, 1.5, -1.2);
+  const shelfPositions = [-6.0, 0, 6.0];
+  for (const shelfX of shelfPositions) {
+    const shelf = box(4.25, 1.6, 1.15, materials.darkWood);
+    shelf.position.set(shelfX, 1.5, -1.15);
     group.add(shelf);
+    colliders.push({ id: `shelf-${shelfX}`, x: shelfX, z: -1.15, width: 4.35, depth: 1.25 });
     for (let item = 0; item < 6; item += 1) {
       const can = box(0.32, 0.5, 0.3, item % 2 ? materials.redPaint : materials.whitePaint);
-      can.position.set(-8 + shelfIndex * 5 + item * 0.55, 2.5, -1.1);
+      can.position.set(shelfX - 1.45 + item * 0.58, 2.5, -1.1);
       group.add(can);
     }
   }
+
   const counter = box(8.5, 1.25, 1.6, materials.darkWood);
   counter.position.set(7.5, 1.3, -4.7);
-  group.add(counter);
   const register = box(1.05, 0.72, 0.85, materials.metal);
   register.position.set(8.6, 2.3, -4.65);
-  group.add(register);
+  group.add(counter, register);
+  colliders.push({ id: 'counter', x: 7.5, z: -4.7, width: 8.7, depth: 1.8 });
+
   const fridge = box(4.6, 3.7, 1.15, materials.metal);
   fridge.position.set(-8.8, 2.45, -6.65);
   group.add(fridge);
+  colliders.push({ id: 'fridge', x: -8.8, z: -6.65, width: 4.8, depth: 1.35 });
   for (const x of [-9.8, -8.8, -7.8]) {
-    const door = box(0.92, 3.2, 0.08, materials.glass);
-    door.position.set(x, 2.45, -6.03);
-    group.add(door);
+    const fridgeDoor = box(0.92, 3.2, 0.08, materials.glass);
+    fridgeDoor.position.set(x, 2.45, -6.03);
+    group.add(fridgeDoor);
   }
+
+  const aisleRug = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.0, 8.4),
+    new THREE.MeshStandardMaterial({ color: 0x36332d, roughness: 1, side: THREE.DoubleSide })
+  );
+  aisleRug.rotation.x = -Math.PI * 0.5;
+  aisleRug.position.set(6.0, 0.72, 3.0);
+  group.add(aisleRug);
 
   const canopy = new THREE.Group();
   const canopyRoofMaterial = materials.roof.clone();
@@ -230,17 +388,10 @@ export function createGasStation(materials) {
   const canopyRoof = box(16, 0.48, 8, canopyRoofMaterial);
   canopyRoof.position.set(-1.5, 5.35, 12.6);
   canopy.add(canopyRoof);
-
-  const canopyUndersideMaterial = new THREE.MeshStandardMaterial({
-    color: 0x6d6559,
-    roughness: 0.84,
-    emissive: 0x5c3115,
-    emissiveIntensity: 0.42
-  });
+  const canopyUndersideMaterial = new THREE.MeshStandardMaterial({ color: 0x6d6559, roughness: 0.84, emissive: 0x5c3115, emissiveIntensity: 0.42 });
   const canopyUnderside = box(15.45, 0.1, 7.45, canopyUndersideMaterial);
   canopyUnderside.position.set(-1.5, 5.06, 12.6);
   canopy.add(canopyUnderside);
-
   for (const z of [8.68, 16.52]) {
     const redEdge = box(16.15, 0.34, 0.28, materials.redPaint);
     redEdge.position.set(-1.5, 5.12, z);
@@ -271,11 +422,11 @@ export function createGasStation(materials) {
     group.add(pump);
   }
 
-  const warmLights = [];
-  for (const position of [[-6, 4.8, 2.5], [0, 4.8, 2.5], [6, 4.8, 2.5], [-4.5, 4.6, 12.6], [1.4, 4.6, 12.6]]) {
+  for (const position of [[-7, 4.7, 1.7], [0, 4.7, 1.7], [7, 4.7, 1.7], [-4.5, 4.6, 12.6], [1.4, 4.6, 12.6]]) {
     const light = new THREE.PointLight(0xffb766, 12, 18, 2.2);
     light.position.set(position[0], position[1], position[2]);
     light.castShadow = false;
+    light.userData.baseIntensity = light.intensity;
     group.add(light);
     warmLights.push(light);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), materials.windowGlow);
@@ -284,7 +435,21 @@ export function createGasStation(materials) {
   }
 
   enableShadows(group);
-  return { group, roof, roofMaterial, warmLights, bounds: { width, depth } };
+  return {
+    group,
+    roof,
+    roofMaterial,
+    warmLights,
+    cutaway,
+    colliders,
+    entrances: [{ x: doorCenter, z: depth * 0.5 + 0.1, width: doorWidth }],
+    lootSpots: [
+      { id: 'shelves', label: 'Food mart shelves', x: -4.8, z: -1.2, table: 'gas_station' },
+      { id: 'counter-cache', label: 'Locked counter cache', x: 7.0, z: -3.0, table: 'gas_station' },
+      { id: 'fridge-cache', label: 'Cold storage', x: -8.2, z: -5.0, table: 'gas_station' }
+    ],
+    bounds: { width, depth }
+  };
 }
 
 /** @param {import('./Materials.js').MaterialLibrary} materials */
@@ -293,35 +458,89 @@ export function createBarn(materials) {
   group.name = 'Rural barn';
   const width = 17;
   const depth = 15;
+  const cutaway = [];
+  const colliders = [];
+  const warmLights = [];
+
   const floor = box(width, 0.35, depth, materials.darkWood);
   floor.position.y = 0.5;
   group.add(floor);
+
+  const backGroup = new THREE.Group();
   const back = box(width, 5.5, 0.35, materials.darkWood);
   back.position.set(0, 3.2, -depth * 0.5);
+  backGroup.add(back);
+  group.add(backGroup);
+  cutaway.push({ object: backGroup, normal: { x: 0, z: -1 } });
+  colliders.push({ id: 'back', x: 0, z: -depth * 0.5, width, depth: 0.48 });
+
+  const leftGroup = new THREE.Group();
   const left = box(0.35, 5.5, depth, materials.darkWood);
   left.position.set(-width * 0.5, 3.2, 0);
+  leftGroup.add(left);
+  group.add(leftGroup);
+  cutaway.push({ object: leftGroup, normal: { x: -1, z: 0 } });
+  colliders.push({ id: 'left', x: -width * 0.5, z: 0, width: 0.48, depth });
+
+  const rightGroup = new THREE.Group();
   const right = box(0.35, 5.5, depth, materials.darkWood);
   right.position.set(width * 0.5, 3.2, 0);
-  group.add(back, left, right);
+  rightGroup.add(right);
+  group.add(rightGroup);
+  cutaway.push({ object: rightGroup, normal: { x: 1, z: 0 } });
+  colliders.push({ id: 'right', x: width * 0.5, z: 0, width: 0.48, depth });
+
+  const frontGroup = new THREE.Group();
   for (const x of [-6.6, 6.6]) {
     const frontPost = box(0.45, 5.5, 0.45, materials.darkWood);
     frontPost.position.set(x, 3.2, depth * 0.5);
-    group.add(frontPost);
+    frontGroup.add(frontPost);
+    colliders.push({ id: `front-post-${x < 0 ? 'left' : 'right'}`, x, z: depth * 0.5, width: 0.6, depth: 0.6 });
   }
+  group.add(frontGroup);
+  cutaway.push({ object: frontGroup, normal: { x: 0, z: 1 } });
+
   const roofMaterial = materials.roof.clone();
   roofMaterial.color.set(0x5f4f43);
   roofMaterial.transparent = true;
-  const roof = box(width + 1.2, 0.55, depth + 1.2, roofMaterial);
-  roof.position.y = 6.15;
-  roof.rotation.z = 0.04;
+  const roof = new THREE.Group();
+  roof.name = 'Barn roof';
+  const roofSlab = box(width + 1.2, 0.55, depth + 1.2, roofMaterial);
+  roofSlab.position.y = 6.15;
+  roofSlab.rotation.z = 0.04;
+  roof.add(roofSlab);
   group.add(roof);
+
   for (const x of [-5.5, 0, 5.5]) {
     const bale = box(3.4, 1.8, 2.5, new THREE.MeshStandardMaterial({ color: 0x8f7c45, roughness: 1 }));
     bale.position.set(x, 1.4, -4.5);
     group.add(bale);
+    colliders.push({ id: `bale-${x}`, x, z: -4.5, width: 3.55, depth: 2.65 });
   }
+
+  const workbench = box(4.2, 1.25, 1.25, materials.wood);
+  workbench.position.set(4.8, 1.2, 3.6);
+  group.add(workbench);
+  colliders.push({ id: 'workbench', x: 4.8, z: 3.6, width: 4.35, depth: 1.4 });
+
+  const light = new THREE.PointLight(0xffaa5f, 6.2, 14, 2.1);
+  light.position.set(0, 4.8, 1.5);
+  light.userData.baseIntensity = light.intensity;
+  group.add(light);
+  warmLights.push(light);
+
   enableShadows(group);
-  return { group, roof, roofMaterial, bounds: { width, depth } };
+  return {
+    group,
+    roof,
+    roofMaterial,
+    warmLights,
+    cutaway,
+    colliders,
+    entrances: [{ x: 0, z: depth * 0.5 + 0.1, width: 11.5 }],
+    lootSpots: [{ id: 'workbench', label: 'Barn workshop', x: 3.4, z: 2.6, table: 'workshop' }],
+    bounds: { width, depth }
+  };
 }
 
 /** @param {import('./Materials.js').MaterialLibrary} materials @param {'pickup' | 'sedan'} kind */
