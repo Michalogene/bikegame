@@ -14,11 +14,13 @@ export class CameraRig {
     this.targetYaw = this.yaw;
     this.zoom = 32.5;
     this.targetZoom = 32.5;
+    this.manualZoom = 32.5;
     this.height = 37;
     this.interiorBlend = 0;
     this.targetInteriorBlend = 0;
-    this.interiorZoomScale = 0.84;
+    this.interiorZoomScale = 0.88;
     this.activeInteriorId = null;
+    this.compositionMode = 'outdoor';
     this.framingOffset = 12;
     this.lateralFraming = 3.2;
     this.raycaster = new THREE.Raycaster();
@@ -43,7 +45,8 @@ export class CameraRig {
   update(target, dt) {
     this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
     this.interiorBlend = damp(this.interiorBlend, this.targetInteriorBlend, 9, dt);
-    const effectiveZoomTarget = this.targetZoom * (1 - (1 - this.interiorZoomScale) * this.interiorBlend);
+    const effectiveZoomTarget = this.manualZoom * (1 - (1 - this.interiorZoomScale) * this.interiorBlend);
+    this.targetZoom = effectiveZoomTarget;
     this.zoom = damp(this.zoom, effectiveZoomTarget, 10, dt);
     this.height = damp(this.height, effectiveZoomTarget * 1.14, 8, dt);
     const forwardX = -Math.sin(this.yaw);
@@ -80,14 +83,32 @@ export class CameraRig {
 
   /** @param {number} delta */
   changeZoom(delta) {
-    this.targetZoom = clamp(this.targetZoom + delta * 2.5, 23, 42);
+    this.manualZoom = clamp(this.manualZoom + delta * 2.5, 23, 42);
   }
 
   /** @param {boolean} active @param {number} [scale] @param {string | null} [buildingId] */
-  setInteriorMode(active, scale = 0.84, buildingId = null) {
-    this.interiorZoomScale = clamp(scale, 0.76, 0.94);
+  setInteriorMode(active, scale = 0.88, buildingId = null) {
+    this.interiorZoomScale = clamp(scale, 0.8, 0.96);
     this.targetInteriorBlend = active ? 1 : 0;
     this.activeInteriorId = active ? buildingId : null;
+    this.compositionMode = active ? 'interior' : 'outdoor';
+  }
+
+  resetComposition(options = {}) {
+    this.setInteriorMode(false);
+    if (options.immediate) {
+      this.interiorBlend = 0;
+      this.targetInteriorBlend = 0;
+      this.zoom = this.manualZoom;
+      this.targetZoom = this.manualZoom;
+    }
+  }
+
+  /** @param {{ x: number, y?: number, z: number }} target */
+  snapTo(target) {
+    this.smoothedTarget.set(target.x, (target.y ?? 0) + 1.35, target.z);
+    this.target.set(target.x, target.y ?? 0, target.z);
+    this.update(target, 1);
   }
 
   /** @param {{ x: number, y: number }} pointer @param {number} height */
