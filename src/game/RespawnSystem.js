@@ -1,133 +1,173 @@
 // @ts-check
 
-/** @param {number} x1 @param {number} z1 @param {number} x2 @param {number} z2 */
-function distance(x1, z1, x2, z2) {
-  return Math.hypot(x2 - x1, z2 - z1);
-}
-
-/**
- * @param {{ x: number, z: number }[]} points
- * @param {{ x: number, z: number }} death
- * @param {{ position: { x: number, z: number }, dead?: boolean }[]} enemies
- * @param {(x: number, z: number) => boolean} blocked
- */
-export function rankRespawnPoints(points, death, enemies, blocked) {
-  return points
-    .filter((point) => !blocked(point.x, point.z))
-    .map((point) => {
-      const deathDistance = distance(point.x, point.z, death.x, death.z);
-      const enemyDistance = enemies
-        .filter((enemy) => !enemy.dead)
-        .reduce((minimum, enemy) => Math.min(minimum, distance(point.x, point.z, enemy.position.x, enemy.position.z)), 999);
-      const score = Math.min(deathDistance, 42) * 1.4 + Math.min(enemyDistance, 32) * 2.1 + (deathDistance >= 14 ? 20 : -35);
-      return { ...point, deathDistance, enemyDistance, score };
-    })
-    .sort((a, b) => b.score - a.score);
-}
+import { Random } from '../core/Random.js';
+import { selectRespawnCandidate } from './RespawnPolicy.js';
 
 export class RespawnSystem {
-  /** @param {any} systems */
-  constructor(systems) {
-    Object.assign(this, systems);
-    this.timer = null;
-    this.delayMs = 2800;
-    this.deathPosition = null;
-    this.disposers = [
-      this.state.bus.on('player:died', (payload) => this.onDeath(payload))
-    ];
+  /** @param {import('../state/GameState.js').GameState} state @param {import('../world/WorldBuilder.js').WorldBuilder} world @param {import('../entities/Player.js').Player} player @param {import('../entities/EnemySystem.js').EnemySystem} enemies */
+  constructor(state, world, player, enemies) {
+    this.state = state;
+    this.world = world;
+    this.player = player;
+    this.enemies = enemies;
+    this.random = new Random(0x5afe1178);
+    this.pendingSeconds = 0;
+    this.pendingDeadline = 0;
+    this.pendingOrigin = null;
+    this.pendingReason = null;
+    this.lastTick = -1;
+    this.lastSelection = null;
+    this.timerHandle = null;
+    this.reliability = null;
   }
 
-  /** @param {any} payload */
-  onDeath(payload) {
-    if (this.state.respawn.pending) return;
-    this.deathPosition = { x: this.player.position.x, z: this.player.position.z };
-    this.state.markDead?.(payload?.source ?? 'Unknown');
-    this.state.respawn.pending = true;
-    this.state.respawn.deathX = this.deathPosition.x;
-    this.state.respawn.deathZ = this.deathPosition.z;
-    this.input.setEnabled?.(false);
-    this.input.reset?.();
-    this.time.pause?.('death');
-    this.hud.closeAllGameplayPanels?.({ restoreFocus: false });
-    this.interaction.reset?.();
-    this.building.cancel?.();
-    this.player.stopAiming?.();
-    this.player.velocity.x = 0;
-    this.player.velocity.z = 0;
+  /** @param {any} reliability */
+  attachReliability(reliability) {
+    this.reliability = reliability;
+  }
+
+  /** @param {{ source?: string } | undefined} payload */
+  scheduleDeathRespawn(payload) {
+    if (this.state.respawn.pending || this.pendingSeconds > 0) return false;
+    const origin = { x: this.player.position.x, z: this.player.position.z };
+    this.state.lastDeath = {
+      ...origin,
+      day: this.state.clock.day,
+      minute: this.state.clock.minute,
+      source: payload?.source ?? 'Unknown'
+    };
+    this.pendingOrigin = origin;
+    this.pendingReason = 'death';
+    this.pendingSeconds = 3.2;
+    this.pendingDeadline = performance.now() + this.pendingSeconds * 1000;
+    this.lastTick = Math.ceil(this.pendingSeconds);
+    this.state.respawn = { pending: true, reason: 'death', scheduledAt: Date.now() };
     this.clearTimer();
-    this.timer = setTimeout(() => this.respawnNow(), this.delayMs);
+    this.timerHandle = globalThis.setTimeout(() => {
+      if (this.state.dead && this.state.respawn.pending) this.respawnPendingNow();
+    }, this.pendingSeconds * 1000);
+    this.state.bus.emit('player:respawn-scheduled', {
+      seconds: this.lastTick,
+      origin,
+      source: payload?.source ?? 'Unknown'
+    });
+    return true;
+  }
+
+  /** @param {number} dt */
+  update(dt) {
+    if (!this.state.respawn.pending || this.pendingSeconds <= 0) return;
+    const realRemaining = this.pendingDeadline > 0 ? (this.pendingDeadline - performance.now()) / 1000 : Infinity;
+    this.pendingSeconds = Math.max(0, Math.min(this.pendingSeconds - dt, realRemaining));
+    const tick = Math.ceil(this.pendingSeconds);
+    if (tick !== this.lastTick) {
+      this.lastTick = tick;
+      this.state.bus.emit('player:respawn-tick', { seconds: tick });
+    }
+    if (this.pendingSeconds <= 0) this.respawnPendingNow();
+  }
+
+  /** @param {'death' | 'developer' | 'manual'} [reason] @param {{ x: number, z: number } | null} [origin] */
+  respawnNow(reason = 'manual', origin = null) {
+    const wasDead = this.state.dead;
+    const respawnOrigin = origin ?? this.pendingOrigin ?? { x: this.player.position.x, z: this.player.position.z };
+    const selection = this.chooseSpawn(respawnOrigin);
+    if (!selection) {
+      this.state.bus.emit('toast', 'No safe respawn point was available.');
+      return null;
+    }
+    return this.completeRespawn(selection, reason, respawnOrigin, wasDead);
+  }
+
+  /** @param {{ id?: string, label?: string, x: number, z: number, rotation?: number }} point @param {'death' | 'developer' | 'manual'} [reason] */
+  respawnAt(point, reason = 'developer') {
+    const origin = { x: this.player.position.x, z: this.player.position.z };
+    const selection = {
+      id: point.id ?? `forced-${Math.round(point.x)}-${Math.round(point.z)}`,
+      label: point.label ?? 'Development target',
+      x: point.x,
+      z: point.z,
+      rotation: point.rotation ?? this.player.root.rotation.y
+    };
+    return this.completeRespawn(selection, reason, origin, this.state.dead);
+  }
+
+  /** @param {any} selection @param {string} reason @param {{ x: number, z: number }} origin @param {boolean} wasDead */
+  completeRespawn(selection, reason, origin, wasDead) {
+    this.cancelPending();
+    this.lastSelection = selection;
+    const countsAsDeath = reason === 'death' || wasDead;
+    if (countsAsDeath) this.state.deaths += 1;
+    this.state.lastSpawnId = selection.id;
+    this.state.revive({
+      health: countsAsDeath ? 72 : Math.max(72, this.state.survival.health),
+      stamina: countsAsDeath ? 86 : Math.max(86, this.state.survival.stamina),
+      protectionSeconds: 4
+    });
+    this.state.respawn = { pending: false, reason: null, scheduledAt: 0 };
+    this.enemies.secureArea(selection.x, selection.z, 15);
+    if (this.reliability) this.reliability.afterRespawn(selection, reason);
+    else this.player.teleport(selection.x, selection.z, selection.rotation);
+    const payload = {
+      reason,
+      spawn: selection,
+      origin,
+      distance: Math.hypot(selection.x - origin.x, selection.z - origin.z)
+    };
+    this.state.bus.emit('player:respawned', payload);
+    this.state.bus.emit('toast', `Respawned at ${selection.label ?? selection.id}.`);
+    return selection;
+  }
+
+  respawnPendingNow() {
+    const reason = this.pendingReason ?? (this.state.dead ? 'death' : 'manual');
+    return this.respawnNow(reason, this.pendingOrigin);
+  }
+
+  /** @param {{ x: number, z: number }} origin */
+  chooseSpawn(origin) {
+    const candidates = [...this.world.spawnPoints];
+    for (let index = 0; index < 14; index += 1) {
+      const angle = (index / 14) * Math.PI * 2 + this.random.range(-0.16, 0.16);
+      const distance = this.random.range(28, 58);
+      candidates.push({
+        id: `procedural-${index}`,
+        x: Math.max(-78, Math.min(78, origin.x + Math.cos(angle) * distance)),
+        z: Math.max(-78, Math.min(78, origin.z + Math.sin(angle) * distance)),
+        rotation: angle + Math.PI,
+        label: 'County roadside'
+      });
+    }
+    const evaluated = candidates.map((candidate) => ({
+      ...candidate,
+      blocked: this.world.collider.isBlocked(candidate.x, candidate.z, this.player.radius + 0.22),
+      outdoor: this.world.isOutdoorSpawnPoint(candidate.x, candidate.z),
+      deathDistance: Math.hypot(candidate.x - origin.x, candidate.z - origin.z),
+      enemyDistance: this.enemies.distanceToNearest(candidate.x, candidate.z)
+    }));
+    return selectRespawnCandidate(evaluated, {
+      minimumDeathDistance: 22,
+      minimumEnemyDistance: 12,
+      lastSpawnId: this.state.lastSpawnId
+    });
   }
 
   clearTimer() {
-    if (this.timer !== null) clearTimeout(this.timer);
-    this.timer = null;
+    if (this.timerHandle !== null) globalThis.clearTimeout(this.timerHandle);
+    this.timerHandle = null;
   }
 
-  /** @param {{ x?: number, z?: number, forceInside?: boolean, manual?: boolean }} [options] */
-  respawnNow(options = {}) {
+  cancelPending() {
     this.clearTimer();
-    const point = Number.isFinite(options.x) && Number.isFinite(options.z)
-      ? { x: Number(options.x), z: Number(options.z), id: options.forceInside ? 'forced-interior' : 'forced' }
-      : this.selectPoint();
-
-    this.hud.closeAllGameplayPanels?.({ restoreFocus: false });
-    this.interaction.reset?.();
-    this.building.cancel?.();
-    this.player.stopAiming?.();
-    this.player.velocity.x = 0;
-    this.player.velocity.z = 0;
-    this.relocate(point.x, point.z);
-    this.state.revive?.(72);
-    this.state.dead = false;
-    this.state.respawn.pending = false;
-    this.state.respawn.lastSpawnId = point.id ?? null;
-    this.state.respawn.protectionUntil = this.state.playSeconds + 4;
-    this.state.respawn.count += 1;
-    this.time.resume?.('death');
-    this.input.setEnabled?.(true);
-    this.input.reset?.();
-    this.hud.hideGameOver?.();
-    this.interiors.reconcileFromWorldPosition?.({ immediate: true });
-    this.camera.snapTo?.(this.player.position);
-    this.renderer?.renderer?.domElement?.focus?.();
-    this.save.save(this.state);
-    this.state.bus.emit('player:respawned', {
-      x: point.x,
-      z: point.z,
-      spawnId: point.id ?? null,
-      manual: Boolean(options.manual),
-      insideBuilding: this.interiors.activeBuildingId
-    });
-    return point;
-  }
-
-  selectPoint() {
-    const death = this.deathPosition ?? {
-      x: this.state.respawn.deathX ?? this.player.position.x,
-      z: this.state.respawn.deathZ ?? this.player.position.z
-    };
-    const ranked = rankRespawnPoints(
-      this.world.spawnPoints ?? [],
-      death,
-      this.enemies?.enemies ?? [],
-      (x, z) => this.world.collider.isBlocked(x, z, 0.85) || this.world.terrain.travelFactor(x, z) < 0.32
-    );
-    return ranked[0] ?? this.world.spawnPoints?.[0] ?? { id: 'fallback', x: -3.2, z: 8 };
-  }
-
-  /** @param {number} x @param {number} z */
-  relocate(x, z) {
-    const y = this.world.terrain.getHeight(x, z);
-    this.player.root.position.set(x, y, z);
-    this.state.player.x = x;
-    this.state.player.z = z;
-    this.interiors.reset?.({ immediate: true });
-    this.interiors.reconcileFromWorldPosition?.({ immediate: true });
-    this.camera.snapTo?.(this.player.position);
+    this.pendingSeconds = 0;
+    this.pendingDeadline = 0;
+    this.pendingOrigin = null;
+    this.pendingReason = null;
+    this.lastTick = -1;
+    this.state.respawn = { pending: false, reason: null, scheduledAt: 0 };
   }
 
   dispose() {
-    this.clearTimer();
-    for (const dispose of this.disposers) dispose();
+    this.cancelPending();
   }
 }
