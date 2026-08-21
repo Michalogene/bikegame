@@ -21,6 +21,17 @@ jobs:
       - run: npm run smoke
         env:
           CHROME_BIN: google-chrome
+      - name: Package downloadable source and browser build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/downloads
+          git archive --format=zip --output=reports/downloads/afterdark-county-source.zip HEAD
+          (
+            cd dist
+            zip -qr ../reports/downloads/afterdark-county-browser-build.zip .
+          )
+          sha256sum reports/downloads/*.zip > reports/downloads/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -29,4 +40,4 @@ jobs:
             dist
             reports
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14
