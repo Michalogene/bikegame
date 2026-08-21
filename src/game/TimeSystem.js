@@ -7,10 +7,14 @@ export class TimeSystem {
   constructor(state) {
     this.state = state;
     this.lastMinute = Math.floor(state.clock.minute);
+    /** @type {Set<string>} */
+    this.pauseReasons = new Set();
+    if (state.clock.paused) this.pauseReasons.add('manual');
   }
 
   /** @param {number} dt */
   update(dt) {
+    if (this.paused) return;
     const clock = this.state.clock;
     clock.minute += dt * clock.speed;
     if (clock.minute >= 1440) {
@@ -34,8 +38,39 @@ export class TimeSystem {
     if (clock.nightfallActive && absolute >= clock.nightfallEndsAt) {
       clock.nightfallActive = false;
       this.state.bus.emit('nightfall:end', { day: clock.day });
-      if (this.state.survival.health > 0) this.state.bus.emit('nightfall:survived');
+      if (!this.state.dead && this.state.survival.health > 0) this.state.bus.emit('nightfall:survived');
     }
+  }
+
+  /** @param {string} [reason] */
+  pause(reason = 'manual') {
+    this.pauseReasons.add(reason);
+    this.state.clock.paused = this.pauseReasons.has('manual') || this.pauseReasons.has('development');
+  }
+
+  /** @param {string} [reason] */
+  resume(reason = 'manual') {
+    this.pauseReasons.delete(reason);
+    this.state.clock.paused = this.pauseReasons.has('manual') || this.pauseReasons.has('development');
+  }
+
+  /** @param {boolean} paused @param {string} [reason] */
+  setPaused(paused, reason = 'manual') {
+    if (paused) this.pause(reason);
+    else this.resume(reason);
+  }
+
+  /** @param {number} minute @param {number | null} [day] */
+  setTime(minute, day = null) {
+    const normalized = ((Number(minute) % 1440) + 1440) % 1440;
+    this.state.clock.minute = normalized;
+    if (Number.isFinite(day)) this.state.clock.day = Math.max(1, Math.floor(Number(day)));
+    this.lastMinute = Math.floor(normalized);
+    this.state.bus.emit('clock:minute', { day: this.state.clock.day, minute: this.lastMinute });
+  }
+
+  get paused() {
+    return this.pauseReasons.size > 0;
   }
 
   get hour() {
@@ -55,7 +90,7 @@ export class TimeSystem {
   }
 
   get formattedTime() {
-    let total = Math.floor(this.state.clock.minute) % 1440;
+    const total = Math.floor(this.state.clock.minute) % 1440;
     const hours24 = Math.floor(total / 60);
     const minutes = total % 60;
     const suffix = hours24 >= 12 ? 'PM' : 'AM';
