@@ -93,6 +93,14 @@ export const ITEM_DEFINITIONS = Object.freeze({
     id: 'fuel_can', name: 'Fuel Can', category: 'component', glyph: '▣',
     weight: 4.5, stack: 2, description: 'Heavy vehicle and generator fuel.', color: '#b34f37'
   },
+  gym_key: {
+    id: 'gym_key', name: 'Gym Key', category: 'mission', glyph: '⚿',
+    weight: 0.04, stack: 1, description: 'A brass key tagged PINE RIDGE GYM.', color: '#d7bd6b'
+  },
+  siphon_notes: {
+    id: 'siphon_notes', name: 'Fuel Siphon Notes', category: 'mission', glyph: '▤',
+    weight: 0.03, stack: 1, description: 'Handwritten instructions describing a safe fuel siphon.', color: '#d8c89d'
+  },
   campfire_kit: {
     id: 'campfire_kit', name: 'Campfire Kit', category: 'buildable', glyph: '♨',
     weight: 3.2, stack: 3, description: 'Place from the Camp panel to create warmth and light.', buildable: 'campfire', color: '#df8843'
