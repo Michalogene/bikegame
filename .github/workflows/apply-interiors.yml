@@ -1,5 +1,6 @@
 name: apply-interiors-checkpoint
 
+# The staging commit installs this workflow; this follow-up revision triggers it.
 on:
   push:
     branches:
