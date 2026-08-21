@@ -4,76 +4,32 @@ on:
   push:
     branches:
       - chatgpt/afterdark-county
-    paths:
-      - 'bootstrap/wip-respawn-camera-interiors.patch.gz.b64'
-      - '.github/workflows/verify.yml'
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: afterdark-verify-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: chatgpt/afterdark-county
-          fetch-depth: 0
-
-      - name: Detect preserved gameplay WIP
-        id: wip
-        shell: bash
-        run: |
-          if [[ -f bootstrap/wip-respawn-camera-interiors.patch.gz.b64 ]]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Decode and apply preserved gameplay WIP
-        if: steps.wip.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          base64 --decode bootstrap/wip-respawn-camera-interiors.patch.gz.b64 | gzip -d > /tmp/afterdark-wip.patch
-          git apply --check /tmp/afterdark-wip.patch
-          git apply /tmp/afterdark-wip.patch
-          git diff --check
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Install pinned dependencies
         run: npm install --no-audit --no-fund
-
-      - name: Verify gameplay WIP
+      - name: Lint, typecheck, unit tests and production build
         run: npm run verify
-
-      - name: Run Chromium gameplay proof
+      - name: Chromium smoke
         run: npm run smoke
         env:
           CHROME_BIN: google-chrome
-
-      - name: Commit verified gameplay WIP
-        if: steps.wip.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm bootstrap/wip-respawn-camera-interiors.patch.gz.b64
-          git add -A -- src scripts styles tests .gitignore ARCHITECTURE.md ASSET_LICENSES.md KNOWN_ISSUES.md PROGRESS.md README.md index.html package-lock.json package.json tsconfig.json
-          git diff --cached --check
-          git commit -m "checkpoint: apply respawn camera and interior fixes"
-          git push origin HEAD:chatgpt/afterdark-county
-
       - name: Package downloadable source and browser build
         shell: bash
         run: |
@@ -85,7 +41,6 @@ jobs:
             zip -qr ../reports/downloads/afterdark-county-browser-build.zip .
           )
           sha256sum reports/downloads/*.zip > reports/downloads/SHA256SUMS.txt
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
