@@ -207,7 +207,7 @@ async function snapshot() {
 }
 
 async function relocate(x, z) {
-  await evaluate(`globalThis.afterdarkCounty.relocatePlayer(${Number(x)}, ${Number(z)}, { focus: true })`);
+  await evaluate(`(() => { globalThis.afterdarkCounty.relocatePlayer(${Number(x)}, ${Number(z)}, { focus: true }); return true; })()`);
   await delay(250);
 }
 
