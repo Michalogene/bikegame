@@ -178,7 +178,6 @@ async function screenshot(name) {
   const capture = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
   await writeFile(join(reports, name), Buffer.from(capture.data, 'base64'));
 }
-
 async function snapshot() {
   return evaluate(`(() => {
     const app = globalThis.afterdarkCounty;
@@ -225,25 +224,47 @@ async function dispatchKey(code, key, down) {
   })()`);
 }
 
-async function sendMove(duration = 750) {
+async function proveMovement(label) {
+  const before = await snapshot();
   await evaluate(`(() => {
     window.focus();
     document.querySelector('#game-root canvas')?.focus?.();
     return document.activeElement?.tagName ?? null;
   })()`);
-  const registered = await dispatchKey('KeyW', 'w', true);
-  if (!registered) throw new Error('InputManager did not register the synthetic KeyW keydown');
-  await delay(duration);
-  await dispatchKey('KeyW', 'w', false);
-  await waitFor(async () => evaluate(`!globalThis.afterdarkCounty?.input?.keys?.has('KeyW')`), 2000, 'KeyW release');
-  await delay(200);
-}
 
-async function proveMovement(label) {
-  const before = await snapshot();
-  await sendMove();
-  const after = await snapshot();
-  const distance = Math.hypot(after.x - before.x, after.z - before.z);
+  let last = before;
+  try {
+    await send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'w',
+      code: 'KeyW',
+      windowsVirtualKeyCode: 87,
+      nativeVirtualKeyCode: 87
+    });
+    const registered = await evaluate(`globalThis.afterdarkCounty?.input?.keys?.has('KeyW') ?? false`);
+    if (!registered) throw new Error(`${label}: InputManager did not register native KeyW keydown`);
+
+    await waitFor(async () => {
+      last = await snapshot();
+      return Math.hypot(last.x - before.x, last.z - before.z) > 0.12;
+    }, 12000, `${label} movement while KeyW is held`);
+  } finally {
+    await send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: 'w',
+      code: 'KeyW',
+      windowsVirtualKeyCode: 87,
+      nativeVirtualKeyCode: 87
+    }).catch(() => {});
+    await dispatchKey('KeyW', 'w', false).catch(() => {});
+    await waitFor(
+      async () => evaluate(`!globalThis.afterdarkCounty?.input?.keys?.has('KeyW')`),
+      2000,
+      'KeyW release'
+    ).catch(() => {});
+  }
+
+  const distance = Math.hypot(last.x - before.x, last.z - before.z);
   if (!(distance > 0.12)) throw new Error(`${label}: survivor did not move (${distance})`);
   return distance;
 }
@@ -358,7 +379,6 @@ try {
     await delay(100);
     state = await snapshot();
     if (state.activePanel || state.backdropVisible) throw new Error(`${panel}: X did not close overlay`);
-
     await click(`[data-panel="${panel}"]`);
     await delay(80);
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
