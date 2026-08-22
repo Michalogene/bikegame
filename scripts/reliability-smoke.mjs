@@ -65,6 +65,43 @@ chrome.stdout.on('data', (chunk) => { chromeLog += chunk.toString(); });
 chrome.stderr.on('data', (chunk) => { chromeLog += chunk.toString(); });
 
 const delay = (ms) => new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+
+async function waitForProcess(child, timeout = 2500) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return true;
+  return Promise.race([
+    new Promise((resolveExit) => child.once('exit', () => resolveExit(true))),
+    delay(timeout).then(() => false)
+  ]);
+}
+
+async function stopProcess(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  child.kill('SIGTERM');
+  if (await waitForProcess(child, 2500)) return;
+  child.kill('SIGKILL');
+  await waitForProcess(child, 1500);
+}
+
+async function closeServer(instance) {
+  if (!instance?.listening) return;
+  await new Promise((resolveClose) => instance.close(() => resolveClose()));
+}
+
+async function removeProfile(path) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+      return;
+    } catch (error) {
+      if (!['ENOTEMPTY', 'EBUSY', 'EPERM'].includes(error?.code) || attempt === 7) {
+        process.stderr.write(`Reliability cleanup warning: ${error instanceof Error ? error.message : String(error)}\n`);
+        return;
+      }
+      await delay(150 * (attempt + 1));
+    }
+  }
+}
+
 async function waitForFile(path, timeout = 15000) {
   const started = Date.now();
   while (Date.now() - started < timeout) {
@@ -175,11 +212,30 @@ async function relocate(x, z) {
   await delay(250);
 }
 
+async function dispatchKey(code, key, down) {
+  return evaluate(`(() => {
+    const event = new KeyboardEvent(${down ? "'keydown'" : "'keyup'"}, {
+      code: ${JSON.stringify(code)},
+      key: ${JSON.stringify(key)},
+      bubbles: true,
+      cancelable: true
+    });
+    window.dispatchEvent(event);
+    return globalThis.afterdarkCounty?.input?.keys?.has(${JSON.stringify(code)}) ?? false;
+  })()`);
+}
+
 async function sendMove(duration = 750) {
-  await evaluate(`document.querySelector('#game-root canvas')?.focus()`);
-  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'w', code: 'KeyW', windowsVirtualKeyCode: 87, nativeVirtualKeyCode: 87 });
+  await evaluate(`(() => {
+    window.focus();
+    document.querySelector('#game-root canvas')?.focus?.();
+    return document.activeElement?.tagName ?? null;
+  })()`);
+  const registered = await dispatchKey('KeyW', 'w', true);
+  if (!registered) throw new Error('InputManager did not register the synthetic KeyW keydown');
   await delay(duration);
-  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'w', code: 'KeyW', windowsVirtualKeyCode: 87, nativeVirtualKeyCode: 87 });
+  await dispatchKey('KeyW', 'w', false);
+  await waitFor(async () => evaluate(`!globalThis.afterdarkCounty?.input?.keys?.has('KeyW')`), 2000, 'KeyW release');
   await delay(200);
 }
 
@@ -238,7 +294,7 @@ try {
 
   for (let cycle = 1; cycle <= 10; cycle += 1) {
     await relocate(19, 4.4);
-    let outside = await snapshot();
+    const outside = await snapshot();
     if (outside.activeBuilding) throw new Error(`cycle ${cycle}: exterior retained active building`);
     if (!outside.roofVisible) throw new Error(`cycle ${cycle}: exterior roof stayed hidden`);
 
@@ -351,8 +407,9 @@ try {
   await writeFile(join(reports, 'reliability-smoke.json'), JSON.stringify(report, null, 2));
   throw error;
 } finally {
-  socket.close();
-  chrome.kill('SIGTERM');
-  server.close();
-  await rm(profile, { recursive: true, force: true });
+  try { await send('Browser.close'); } catch {}
+  try { socket.close(); } catch {}
+  await stopProcess(chrome);
+  await closeServer(server);
+  await removeProfile(profile);
 }
