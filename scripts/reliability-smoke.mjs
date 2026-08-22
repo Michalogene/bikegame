@@ -372,21 +372,29 @@ try {
   for (const panel of ['map', 'inventory', 'crafting', 'missions', 'camp', 'settings']) {
     const opened = await click(`[data-panel="${panel}"]`);
     if (!opened) throw new Error(`Missing ${panel} navigation button`);
-    await delay(100);
-    let state = await snapshot();
-    if (state.activePanel !== panel || !state.backdropVisible) throw new Error(`${panel}: panel did not open`);
+    await waitFor(async () => {
+      const state = await snapshot();
+      return state.activePanel === panel && state.backdropVisible;
+    }, 12000, `${panel} panel opening`);
+
     const closed = await click('[data-close-panel]');
     if (!closed) throw new Error(`${panel}: close button missing`);
-    await delay(100);
-    state = await snapshot();
-    if (state.activePanel || state.backdropVisible) throw new Error(`${panel}: X did not close overlay`);
+    await waitFor(async () => {
+      const state = await snapshot();
+      return !state.activePanel && !state.backdropVisible;
+    }, 12000, `${panel} X close`);
+
     await click(`[data-panel="${panel}"]`);
-    await delay(80);
+    await waitFor(async () => {
+      const state = await snapshot();
+      return state.activePanel === panel && state.backdropVisible;
+    }, 12000, `${panel} reopening`);
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
-    await delay(120);
-    state = await snapshot();
-    if (state.activePanel || state.backdropVisible) throw new Error(`${panel}: Escape did not close overlay`);
+    await waitFor(async () => {
+      const state = await snapshot();
+      return !state.activePanel && !state.backdropVisible;
+    }, 12000, `${panel} Escape close`);
     report.menus.push({ panel, x: true, escape: true });
   }
   await proveMovement('post-menu focus restoration');
