@@ -404,10 +404,14 @@ try {
   await relocate(19, -5);
   await evaluate(`(() => { const app = globalThis.afterdarkCounty; app.state.respawn.protectedUntil = 0; app.state.damage(9999, 'Reliability interior death'); })()`);
   await waitFor(async () => (await snapshot()).dead === true, 3000, 'interior death');
+  const respawnPending = await evaluate(`globalThis.afterdarkCounty.state.respawn.pending === true`);
+  if (!respawnPending) throw new Error('Interior death did not schedule respawn');
+  const respawnTriggered = await evaluate(`Boolean(globalThis.afterdarkCounty.respawnPlayer({ manual: true }))`);
+  if (!respawnTriggered) throw new Error('Manual reliability respawn did not return a target');
   await waitFor(async () => {
     const state = await snapshot();
     return !state.dead && state.health > 0 && !state.gameOverVisible;
-  }, 60000, 'interior respawn');
+  }, 12000, 'interior respawn');
   const afterRespawn = await snapshot();
   if (afterRespawn.activeBuilding) throw new Error('Interior context survived exterior respawn');
   if (!afterRespawn.inputEnabled) throw new Error('Input remained disabled after respawn');
