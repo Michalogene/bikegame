@@ -348,6 +348,14 @@ export class Hud {
     this.elements.backdrop.setAttribute('aria-hidden', 'true');
   }
 
+  closeTopPanel() {
+    this.closePanel();
+  }
+
+  closeAllGameplayPanels() {
+    this.closePanel();
+  }
+
   /** @param {boolean} [force] */
   renderPanel(force = false) {
     if (!this.activePanel) return;
