@@ -389,8 +389,9 @@ try {
       const state = await snapshot();
       return state.activePanel === panel && state.backdropVisible;
     }, 12000, `${panel} reopening`);
-    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
-    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 });
+    const escapeRegistered = await dispatchKey('Escape', 'Escape', true);
+    if (!escapeRegistered) throw new Error(`${panel}: InputManager did not register Escape`);
+    await dispatchKey('Escape', 'Escape', false);
     await waitFor(async () => {
       const state = await snapshot();
       return !state.activePanel && !state.backdropVisible;
