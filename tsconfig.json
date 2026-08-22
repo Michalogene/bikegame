@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": []
+  },
+  "include": [
+    "src/core/EventBus.js",
+    "src/core/GameLoop.js",
+    "src/core/Random.js",
+    "src/core/math.js",
+    "src/data/**/*.js",
+    "src/state/**/*.js",
+    "src/game/TimeSystem.js",
+    "src/game/MissionSystem.js",
+    "src/game/CraftingSystem.js"
+  ]
+}

@@ -1,0 +1,52 @@
+name: verify
+
+on:
+  push:
+    branches:
+      - chatgpt/afterdark-county
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: afterdark-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned dependencies
+        run: npm install --no-audit --no-fund
+      - name: Lint, typecheck, unit tests and production build
+        run: npm run verify
+      - name: Package downloadable source and browser build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/downloads
+          git archive --format=zip --output=reports/downloads/afterdark-county-source.zip HEAD
+          (
+            cd dist
+            zip -qr ../reports/downloads/afterdark-county-browser-build.zip .
+          )
+          sha256sum reports/downloads/*.zip > reports/downloads/SHA256SUMS.txt
+      - name: Chromium gameplay reliability smoke
+        run: npm run reliability
+        env:
+          CHROME_BIN: google-chrome
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: afterdark-county-verification
+          path: |
+            dist
+            reports
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050a0d" />
+    <meta name="description" content="Afterdark County — an isometric browser survival game." />
+    <title>Afterdark County</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles/main.css" />
+    <link rel="stylesheet" href="./styles/polish.css" />
+  </head>
+  <body>
+    <div id="game-root" aria-label="Afterdark County game viewport"></div>
+    <div id="ui-root"></div>
+    <div id="boot-screen" role="status" aria-live="polite">
+      <div class="boot-brand"><strong>AFTERDARK</strong><span>COUNTY</span></div>
+      <div class="boot-copy">Preparing Pine Ridge...</div>
+      <div class="boot-track"><i></i></div>
+    </div>
+    <noscript>Afterdark County requires JavaScript.</noscript>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.min.js"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="./src/extensions/GameplayExpansion.js"></script>
+  </body>
+</html>

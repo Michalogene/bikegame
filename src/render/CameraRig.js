@@ -1,0 +1,137 @@
+// @ts-check
+
+import * as THREE from '../core/three.js';
+import { clamp, damp, dampAngle } from '../core/math.js';
+
+export class CameraRig {
+  /** @param {HTMLElement} viewport */
+  constructor(viewport) {
+    this.viewport = viewport;
+    this.camera = new THREE.OrthographicCamera(-20, 20, 12, -12, 0.1, 300);
+    this.target = new THREE.Vector3();
+    this.smoothedTarget = new THREE.Vector3();
+    this.yaw = -Math.PI * 0.25;
+    this.targetYaw = this.yaw;
+    this.zoom = 32.5;
+    this.targetZoom = 32.5;
+    this.manualZoom = 32.5;
+    this.height = 37;
+    this.interiorBlend = 0;
+    this.targetInteriorBlend = 0;
+    this.interiorZoomScale = 0.88;
+    this.activeInteriorId = null;
+    this.compositionMode = 'outdoor';
+    this.framingOffset = 12;
+    this.lateralFraming = 3.2;
+    this.raycaster = new THREE.Raycaster();
+    this.groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    this.tempPoint = new THREE.Vector3();
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(viewport);
+    this.resize();
+  }
+
+  resize() {
+    const aspect = Math.max(0.5, this.viewport.clientWidth / Math.max(1, this.viewport.clientHeight));
+    const halfHeight = this.zoom * 0.5;
+    this.camera.left = -halfHeight * aspect;
+    this.camera.right = halfHeight * aspect;
+    this.camera.top = halfHeight;
+    this.camera.bottom = -halfHeight;
+    this.camera.updateProjectionMatrix();
+  }
+
+  /** @param {{ x: number, y?: number, z: number }} target @param {number} dt */
+  update(target, dt) {
+    this.yaw = dampAngle(this.yaw, this.targetYaw, 8, dt);
+    this.interiorBlend = damp(this.interiorBlend, this.targetInteriorBlend, 9, dt);
+    const effectiveZoomTarget = this.manualZoom * (1 - (1 - this.interiorZoomScale) * this.interiorBlend);
+    this.targetZoom = effectiveZoomTarget;
+    this.zoom = damp(this.zoom, effectiveZoomTarget, 10, dt);
+    this.height = damp(this.height, effectiveZoomTarget * 1.14, 8, dt);
+    const forwardX = -Math.sin(this.yaw);
+    const forwardZ = -Math.cos(this.yaw);
+    const rightX = Math.cos(this.yaw);
+    const rightZ = -Math.sin(this.yaw);
+    const framing = this.framingOffset * (this.zoom / 32.5) * (1 - this.interiorBlend * 0.34);
+    const lateral = this.lateralFraming * (this.zoom / 32.5) * (1 - this.interiorBlend * 0.42);
+    this.target.set(
+      target.x + forwardX * framing + rightX * lateral,
+      target.y ?? 0,
+      target.z + forwardZ * framing + rightZ * lateral
+    );
+    this.smoothedTarget.x = damp(this.smoothedTarget.x, this.target.x, 7.5, dt);
+    this.smoothedTarget.y = damp(this.smoothedTarget.y, this.target.y + 1.35, 7.5, dt);
+    this.smoothedTarget.z = damp(this.smoothedTarget.z, this.target.z, 7.5, dt);
+    this.resize();
+
+    const distance = this.zoom * 1.04;
+    const horizontal = distance * 0.9;
+    this.camera.position.set(
+      this.smoothedTarget.x + Math.sin(this.yaw) * horizontal,
+      this.smoothedTarget.y + this.height,
+      this.smoothedTarget.z + Math.cos(this.yaw) * horizontal
+    );
+    this.camera.lookAt(this.smoothedTarget);
+    this.camera.updateMatrixWorld();
+  }
+
+  /** @param {number} direction */
+  rotate(direction) {
+    this.targetYaw += direction * Math.PI * 0.5;
+  }
+
+  /** @param {number} delta */
+  changeZoom(delta) {
+    this.manualZoom = clamp(this.manualZoom + delta * 2.5, 23, 42);
+  }
+
+  /** @param {boolean} active @param {number} [scale] @param {string | null} [buildingId] */
+  setInteriorMode(active, scale = 0.88, buildingId = null) {
+    this.interiorZoomScale = clamp(scale, 0.8, 0.96);
+    this.targetInteriorBlend = active ? 1 : 0;
+    this.activeInteriorId = active ? buildingId : null;
+    this.compositionMode = active ? 'interior' : 'outdoor';
+  }
+
+  resetComposition(options = {}) {
+    this.setInteriorMode(false);
+    if (options.immediate) {
+      this.interiorBlend = 0;
+      this.targetInteriorBlend = 0;
+      this.zoom = this.manualZoom;
+      this.targetZoom = this.manualZoom;
+    }
+  }
+
+  /** @param {{ x: number, y?: number, z: number }} target */
+  snapTo(target) {
+    this.smoothedTarget.set(target.x, (target.y ?? 0) + 1.35, target.z);
+    this.target.set(target.x, target.y ?? 0, target.z);
+    this.update(target, 1);
+  }
+
+  /** @param {{ x: number, y: number }} pointer @param {number} height */
+  pointerToGround(pointer, height = 0) {
+    this.groundPlane.constant = -height;
+    this.raycaster.setFromCamera(pointer, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(this.groundPlane, this.tempPoint);
+    return hit ? { x: hit.x, y: hit.y, z: hit.z } : null;
+  }
+
+  /** Convert local input axes to world motion using the camera orientation. */
+  inputToWorld(x, z) {
+    const forwardX = -Math.sin(this.yaw);
+    const forwardZ = -Math.cos(this.yaw);
+    const rightX = Math.cos(this.yaw);
+    const rightZ = -Math.sin(this.yaw);
+    const worldX = rightX * x + forwardX * -z;
+    const worldZ = rightZ * x + forwardZ * -z;
+    const length = Math.hypot(worldX, worldZ) || 1;
+    return { x: worldX / length, z: worldZ / length };
+  }
+
+  dispose() {
+    this.resizeObserver.disconnect();
+  }
+}
