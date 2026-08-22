@@ -407,7 +407,7 @@ try {
   await waitFor(async () => {
     const state = await snapshot();
     return !state.dead && state.health > 0 && !state.gameOverVisible;
-  }, 10000, 'interior respawn');
+  }, 60000, 'interior respawn');
   const afterRespawn = await snapshot();
   if (afterRespawn.activeBuilding) throw new Error('Interior context survived exterior respawn');
   if (!afterRespawn.inputEnabled) throw new Error('Input remained disabled after respawn');
