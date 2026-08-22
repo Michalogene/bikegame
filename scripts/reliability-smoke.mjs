@@ -271,11 +271,12 @@ async function proveMovement(label) {
 
 async function proveClock(label) {
   const before = await snapshot();
-  await delay(1700);
-  const after = await snapshot();
-  const delta = after.minute - before.minute;
-  if (!(delta > 0.01)) throw new Error(`${label}: world clock did not advance`);
-  return delta;
+  let after = before;
+  await waitFor(async () => {
+    after = await snapshot();
+    return after.minute - before.minute > 0.01;
+  }, 12000, `${label} world clock advancement`);
+  return after.minute - before.minute;
 }
 
 async function click(selector) {
