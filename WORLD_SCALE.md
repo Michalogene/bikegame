@@ -1,24 +1,20 @@
 # Afterdark County world scale
 
-The project uses the convention **1 world unit ≈ 1 metre**.
+`1 world unit ≈ 1 metre` is the production convention.
 
-## Gameplay dimensions
+| Element | Adopted value |
+|---|---:|
+| Survivor height | 1.82 m |
+| Survivor collider radius | 0.34 m |
+| Walk / sprint | 2.65 / 5.55 m/s |
+| Loose-loot interaction | 1.55 m |
+| Standard / large interaction | 1.85 / 2.20 m |
+| Residential door | 0.96 × 2.08 m |
+| Residential bed | 2.06 × 1.48 m |
+| Food Mart footprint | 25 × 15 m |
+| Residential footprint | about 13 × 10 m |
+| School footprint | 46 × 32 m |
+| Barn footprint | 28 × 20 m |
+| Pickup length | 6.4 m |
 
-- Survivor visual height: **1.82 m**
-- Survivor collision radius: **0.34 m**
-- Walk speed: **2.65 m/s**
-- Sprint speed: **5.75 m/s**
-- Small loose-loot interaction: **1.45 m**
-- Standard interaction: **1.85 m**
-- Large-object interaction: **2.20 m**
-- Residential door opening: **0.92 × 2.08 m**
-
-## Reference footprints
-
-- Pine Ridge Food Mart: keep its existing approximately **25 × 15 m** footprint
-- Residential house: keep approximately **13 × 10 m**, while correcting oversized furniture and openings
-- Abandoned school target: **46 × 32 m**
-- North Farm barn target: **28 × 20 m**
-- Pickup trucks: retain the existing approximately **6 m** length
-
-All new buildings, furniture, vehicles, interaction ranges, colliders and item visuals should use this contract. Changes to visual scale must be accompanied by matching collision, attachment, navigation and interaction updates.
+All new POIs must author geometry, colliders, interior volumes, loot anchors and camera metadata against `src/config/WorldScale.js`.
