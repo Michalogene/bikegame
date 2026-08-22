@@ -369,6 +369,7 @@ try {
   if (lootReturned) throw new Error('Collected physical loot returned after leaving and re-entering');
   report.loot = { before: lootBefore, after: lootAfter, returned: lootReturned };
 
+  await relocate(-3.2, 8);
   for (const panel of ['map', 'inventory', 'crafting', 'missions', 'camp', 'settings']) {
     const opened = await click(`[data-panel="${panel}"]`);
     if (!opened) throw new Error(`Missing ${panel} navigation button`);
